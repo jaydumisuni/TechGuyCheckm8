@@ -1,0 +1,13 @@
+{
+  "name": "A4",
+  "cpids": ["0x8930"],
+  "requires_arduino": false,
+  "payloads": [
+    { "id": "stage1", "path": "payloads/a4_stage1.bin", "sha256": "7125E6D329D218E27C61A200CAEAED206C49E1A1EA18E1BDD223973EB14042F6 " }
+  ],
+  "scripts": {
+    "win": "scripts/run_a4_win.bat",
+    "mac": "scripts/run_a4_mac.sh",
+    "linux": "scripts/run_a4_linux.sh"
+  }
+}

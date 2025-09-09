@@ -1,0 +1,14 @@
+{
+  "name": "A6",
+  "cpids": ["0x8950", "0x8955"],
+  "requires_arduino": false,
+  "payloads": [
+    { "id": "stage1", "path": "payloads/a6_stage1.bin", "sha256": "9D35BF37D5ED9D453529BCF6EF769F35902F7F9A2265E58CF439CEAA797E7CE7" },
+    { "id": "stage2", "path": "payloads/a6_stage2.bin", "sha256": "C50D31675454F68F36E7D23BAB1F354C6E8E8B2543F5190A68EF90D5DB4F563D" }
+  ],
+  "scripts": {
+    "win": "scripts/run_a6_win.bat",
+    "mac": "scripts/run_a6_mac.sh",
+    "linux": "scripts/run_a6_linux.sh"
+  }
+}

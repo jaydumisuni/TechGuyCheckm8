@@ -1,0 +1,14 @@
+{
+  "name": "A7_A11",
+  "cpids": ["0x8960","0x7000","0x7001","0x8000","0x8001","0x8010","0x8011","0x8012","0x8015"],
+  "requires_arduino": false,
+  "payloads": [
+    { "id": "stage1", "path": "payloads/a7_stage1.bin", "sha256": "ABAD6198943AD6B277FF9DCA84E97EE43F0183DE27AD35A12F7DAC06E7CDC75A" },
+    { "id": "stage2", "path": "payloads/a7_stage2.bin", "sha256": "AC3641F36E4F96F745B0DA750012BCA798D6A4DC8C79AA1B037DE75274A1A85F" }
+  ],
+  "scripts": {
+    "win":   "scripts/run_a7_a11_win.bat",
+    "mac":   "scripts/run_a7_a11_mac.sh",
+    "linux": "scripts/run_a7_a11_linux.sh"
+  }
+}

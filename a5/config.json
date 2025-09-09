@@ -1,0 +1,17 @@
+{
+  "name": "A5",
+  "cpids": ["0x8940", "0x8942", "0x8945"],
+  "requires_arduino": true,
+  "arduino": {
+    "sketch": "arduino_sketches/checkm8_a5/checkm8_a5.ino",
+    "hex_path": null
+  },
+  "payloads": [],
+  "scripts": {
+    "post": {
+      "win": "scripts/run_a5_post_win.bat",
+      "mac": "scripts/run_a5_post_mac.sh",
+      "linux": "scripts/run_a5_post_linux.sh"
+    }
+  }
+}
