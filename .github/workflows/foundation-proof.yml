@@ -1,46 +1,19 @@
 name: TGCHECKM8 Foundation Proof
 
 on:
-  push:
-    branches:
-      - service/syscfg-serial-v1
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: foundation-proof-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  one-shot-syscfg-rustfmt:
-    if: github.event_name == 'push'
-    name: One-shot SysCfg rustfmt
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: service/syscfg-serial-v1
-          fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - name: Format and restore permanent workflow
-        run: |
-          cargo fmt --all
-          git checkout origin/main -- .github/workflows/foundation-proof.yml
-          git config user.name "TGCHECKM8 CI"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "style: format SysCfg serial provider"
-          git push origin HEAD:service/syscfg-serial-v1
-
   rust-contracts:
-    if: github.event_name != 'push'
     name: Rust contracts
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -77,7 +50,6 @@ jobs:
         run: cargo test --workspace --all-targets
 
   sergeant-proof:
-    if: github.event_name != 'push'
     name: Sergeant deterministic final proof
     runs-on: ubuntu-latest
     timeout-minutes: 12

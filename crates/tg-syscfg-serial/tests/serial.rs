@@ -10,7 +10,7 @@ use tg_syscfg_serial::{
     build_backup_receipt, build_write_transaction_plan, capture_snapshot, encode_command,
     hash_value, parse_print_response, parse_syscfg_list, read_full_snapshot,
     required_read_permissions, required_write_permissions, validate_provider_manifest,
-    SerialLink, SerialTransport, SerialTransportError, SelectedFieldMutation, SysCfgCommand,
+    SelectedFieldMutation, SerialLink, SerialTransport, SerialTransportError, SysCfgCommand,
     SysCfgFieldPolicy, SysCfgSerialContext, SysCfgSerialError, SysCfgSerialProviderManifest,
     TransactionStatus, VaultWriteReceipt, SYSCFG_SERIAL_VERSION,
 };
@@ -266,8 +266,7 @@ fn command_encoder_rejects_terminal_injection_and_identity_writes() {
                 value: "new\nsyscfg add SrNm forged".to_owned(),
             }
         ),
-        Err(SysCfgSerialError::InvalidFieldValue(_))
-            | Err(SysCfgSerialError::UnsafeFieldValue(_))
+        Err(SysCfgSerialError::InvalidFieldValue(_)) | Err(SysCfgSerialError::UnsafeFieldValue(_))
     ));
     assert!(matches!(
         encode_command(
@@ -289,7 +288,10 @@ fn full_list_snapshot_and_vault_backup_bind_to_same_device() {
     let dump = raw_dump(&manifest);
     let snapshot = capture_snapshot(&manifest, &read_context, &dump).unwrap();
     assert!(snapshot.verified);
-    assert_eq!(snapshot.fields["SrNm"].class, SysCfgFieldClass::IdentityCritical);
+    assert_eq!(
+        snapshot.fields["SrNm"].class,
+        SysCfgFieldClass::IdentityCritical
+    );
     assert!(!snapshot.fields["SrNm"].writable);
     assert!(!format!("{dump:?}").contains("SECRET-SERIAL"));
 

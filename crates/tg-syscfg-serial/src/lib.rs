@@ -105,8 +105,7 @@ pub fn validate_provider_manifest(
     {
         return Err(SysCfgSerialError::MissingCoverage);
     }
-    if manifest.max_response_bytes == 0
-        || manifest.max_response_bytes > ABSOLUTE_MAX_RESPONSE_BYTES
+    if manifest.max_response_bytes == 0 || manifest.max_response_bytes > ABSOLUTE_MAX_RESPONSE_BYTES
     {
         return Err(SysCfgSerialError::InvalidResponseLimit(
             manifest.max_response_bytes,
@@ -148,10 +147,20 @@ pub fn validate_provider_manifest(
     {
         return Err(SysCfgSerialError::UnknownRequiredBackupKey);
     }
-    if !manifest.supports_write && manifest.field_catalog.values().any(|policy| policy.writable) {
+    if !manifest.supports_write
+        && manifest
+            .field_catalog
+            .values()
+            .any(|policy| policy.writable)
+    {
         return Err(SysCfgSerialError::WriteCapabilityMismatch);
     }
-    if manifest.supports_write && !manifest.field_catalog.values().any(|policy| policy.writable) {
+    if manifest.supports_write
+        && !manifest
+            .field_catalog
+            .values()
+            .any(|policy| policy.writable)
+    {
         return Err(SysCfgSerialError::WriteCapabilityMismatch);
     }
 
@@ -625,7 +634,10 @@ impl WriteTransactionPlan {
     }
 
     pub fn field_keys(&self) -> Vec<&str> {
-        self.mutations.iter().map(|mutation| mutation.key.as_str()).collect()
+        self.mutations
+            .iter()
+            .map(|mutation| mutation.key.as_str())
+            .collect()
     }
 }
 
@@ -699,13 +711,17 @@ pub fn build_write_transaction_plan(
             .get(&change.field_key)
             .ok_or_else(|| SysCfgSerialError::UnknownField(change.field_key.clone()))?;
         if !field_policy.writable || field_policy.class != change.class {
-            return Err(SysCfgSerialError::FieldNotWritable(change.field_key.clone()));
+            return Err(SysCfgSerialError::FieldNotWritable(
+                change.field_key.clone(),
+            ));
         }
         let before_value = dump
             .field_value(&change.field_key)
             .ok_or_else(|| SysCfgSerialError::MissingBackupValue(change.field_key.clone()))?;
         if hash_value(before_value) != change.expected_before_hash {
-            return Err(SysCfgSerialError::BeforeHashMismatch(change.field_key.clone()));
+            return Err(SysCfgSerialError::BeforeHashMismatch(
+                change.field_key.clone(),
+            ));
         }
         validate_value(
             &change.field_key,
@@ -713,7 +729,9 @@ pub fn build_write_transaction_plan(
             field_policy.max_value_bytes,
         )?;
         if hash_value(requested_value) != change.requested_after_hash {
-            return Err(SysCfgSerialError::AfterHashMismatch(change.field_key.clone()));
+            return Err(SysCfgSerialError::AfterHashMismatch(
+                change.field_key.clone(),
+            ));
         }
 
         let print_command = encode_command(
@@ -838,40 +856,31 @@ pub fn execute_write_transaction<T: SerialTransport>(
         let before_response = match exchange_checked(manifest, transport, &mutation.print_command) {
             Ok(response) => response,
             Err(error) => {
-                failures.push(format!("{} precondition read failed: {error}", mutation.key));
+                failures.push(format!(
+                    "{} precondition read failed: {error}",
+                    mutation.key
+                ));
                 return finish_failed_transaction(
-                    manifest,
-                    plan,
-                    transport,
-                    &attempted,
-                    evidence,
-                    failures,
+                    manifest, plan, transport, &attempted, evidence, failures,
                 );
             }
         };
         let before = match parse_print_response(manifest, &mutation.key, &before_response) {
             Ok(read) => read,
             Err(error) => {
-                failures.push(format!("{} precondition parse failed: {error}", mutation.key));
+                failures.push(format!(
+                    "{} precondition parse failed: {error}",
+                    mutation.key
+                ));
                 return finish_failed_transaction(
-                    manifest,
-                    plan,
-                    transport,
-                    &attempted,
-                    evidence,
-                    failures,
+                    manifest, plan, transport, &attempted, evidence, failures,
                 );
             }
         };
         if before.value_hash() != mutation.before_hash {
             failures.push(format!("{} changed after backup", mutation.key));
             return finish_failed_transaction(
-                manifest,
-                plan,
-                transport,
-                &attempted,
-                evidence,
-                failures,
+                manifest, plan, transport, &attempted, evidence, failures,
             );
         }
         evidence[index].before_precondition_verified = true;
@@ -884,23 +893,13 @@ pub fn execute_write_transaction<T: SerialTransport>(
             Ok(_) => {
                 failures.push(format!("{} write returned an error marker", mutation.key));
                 return finish_failed_transaction(
-                    manifest,
-                    plan,
-                    transport,
-                    &attempted,
-                    evidence,
-                    failures,
+                    manifest, plan, transport, &attempted, evidence, failures,
                 );
             }
             Err(error) => {
                 failures.push(format!("{} write exchange failed: {error}", mutation.key));
                 return finish_failed_transaction(
-                    manifest,
-                    plan,
-                    transport,
-                    &attempted,
-                    evidence,
-                    failures,
+                    manifest, plan, transport, &attempted, evidence, failures,
                 );
             }
         }
@@ -910,12 +909,7 @@ pub fn execute_write_transaction<T: SerialTransport>(
             Err(error) => {
                 failures.push(format!("{} read-back failed: {error}", mutation.key));
                 return finish_failed_transaction(
-                    manifest,
-                    plan,
-                    transport,
-                    &attempted,
-                    evidence,
-                    failures,
+                    manifest, plan, transport, &attempted, evidence, failures,
                 );
             }
         };
@@ -924,12 +918,7 @@ pub fn execute_write_transaction<T: SerialTransport>(
             Err(error) => {
                 failures.push(format!("{} read-back parse failed: {error}", mutation.key));
                 return finish_failed_transaction(
-                    manifest,
-                    plan,
-                    transport,
-                    &attempted,
-                    evidence,
-                    failures,
+                    manifest, plan, transport, &attempted, evidence, failures,
                 );
             }
         };
@@ -937,12 +926,7 @@ pub fn execute_write_transaction<T: SerialTransport>(
         if after.value_hash() != mutation.after_hash {
             failures.push(format!("{} exact read-back mismatch", mutation.key));
             return finish_failed_transaction(
-                manifest,
-                plan,
-                transport,
-                &attempted,
-                evidence,
-                failures,
+                manifest, plan, transport, &attempted, evidence, failures,
             );
         }
         evidence[index].readback_matched = true;
@@ -971,14 +955,7 @@ pub fn execute_write_transaction<T: SerialTransport>(
         }
     } else {
         failures.extend(verification.failures.clone());
-        finish_failed_transaction(
-            manifest,
-            plan,
-            transport,
-            &attempted,
-            evidence,
-            failures,
-        )
+        finish_failed_transaction(manifest, plan, transport, &attempted, evidence, failures)
     }
 }
 
@@ -1031,7 +1008,10 @@ fn finish_failed_transaction<T: SerialTransport>(
             }
             Err(error) => {
                 rollback_all_verified = false;
-                failures.push(format!("{} rollback verification failed: {error}", mutation.key));
+                failures.push(format!(
+                    "{} rollback verification failed: {error}",
+                    mutation.key
+                ));
             }
         }
     }
@@ -1117,11 +1097,7 @@ fn validate_key(key: &str) -> Result<(), SysCfgSerialError> {
     }
 }
 
-fn validate_value(
-    key: &str,
-    value: &str,
-    max_value_bytes: usize,
-) -> Result<(), SysCfgSerialError> {
+fn validate_value(key: &str, value: &str, max_value_bytes: usize) -> Result<(), SysCfgSerialError> {
     if value.is_empty()
         || value.len() > max_value_bytes
         || value.trim() != value
