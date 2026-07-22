@@ -20,6 +20,7 @@ members = [
     "crates/tg-apple-probe",
     "crates/tg-usbliter8",
     "crates/tg-purple-boot",
+    "crates/tg-syscfg-serial",
 ]
 resolver = "2"
 
