@@ -15,4 +15,6 @@ The authoritative capability fields are:
 
 A `discovered` provider with read/write set to `false` cannot be selected for a real service operation. It exists only so research, provenance, required hardware, and missing evidence are tracked without being mistaken for working support.
 
+Purple contracts and provider tooling must remain compatible with the workspace minimum supported Rust version, currently Rust 1.80. A newer convenience API cannot silently raise the MSRV.
+
 Promotion requires recorded fixtures, exact source/build hashes, declared licensing, hardware proof, reconnect identity proof, Purple-mode proof, SysCfg read proof, backup proof, interruption recovery, and exact read-back after any selected write.
