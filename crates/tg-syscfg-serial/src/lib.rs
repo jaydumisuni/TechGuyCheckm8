@@ -473,10 +473,11 @@ pub fn parse_print_response(
         let Some((label, value)) = split_field_line(line) else {
             continue;
         };
-        if (label == key || policy.response_labels.contains(label)) && !value.is_empty() {
-            if found.replace(value.to_owned()).is_some() {
-                return Err(SysCfgSerialError::AmbiguousFieldResponse(key.to_owned()));
-            }
+        if (label == key || policy.response_labels.contains(label))
+            && !value.is_empty()
+            && found.replace(value.to_owned()).is_some()
+        {
+            return Err(SysCfgSerialError::AmbiguousFieldResponse(key.to_owned()));
         }
     }
     let value = found.ok_or_else(|| SysCfgSerialError::MissingFieldResponse(key.to_owned()))?;
