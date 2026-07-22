@@ -482,7 +482,7 @@ fn sha256_hex(value: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error)]
 pub enum SysCfgReadTransportError {
     #[error("unsupported SysCfg read transport version: {0}")]
     UnsupportedVersion(String),
