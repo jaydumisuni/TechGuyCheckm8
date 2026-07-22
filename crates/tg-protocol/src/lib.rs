@@ -160,7 +160,7 @@ pub fn validate_request(request: &RequestFrame) -> Result<(), ProtocolError> {
         && request
             .idempotency_key
             .as_ref()
-            .is_none_or(|value| value.trim().is_empty())
+            .map_or(true, |value| value.trim().is_empty())
     {
         return Err(ProtocolError::IdempotencyRequired(request.method.clone()));
     }
