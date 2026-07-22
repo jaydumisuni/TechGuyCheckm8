@@ -1,0 +1,101 @@
+name: TGCHECKM8 Foundation Proof
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-contracts:
+    name: Rust contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Formatting
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Contract tests
+        run: cargo test --workspace --all-targets
+
+  sergeant-proof:
+    name: Sergeant deterministic final proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SERGEANT_CPL_ENABLED: "false"
+      SERGEANT_CPL_POLICY: disabled
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Sergeant
+        run: python -m pip install --quiet --disable-pip-version-check sergeant-reviewer==0.4.0
+      - name: Repository review
+        run: sergeant review . --pretty > sergeant-review.json
+      - name: Verification standard
+        run: sergeant verify-standard . --pretty > sergeant-verification.json
+      - name: Proof suite report
+        run: sergeant proof-suite . --no-fail --pretty > sergeant-proof-suite.json
+      - name: Final proof report
+        run: sergeant final-proof . --no-fail --pretty > sergeant-final-proof.json
+      - name: Print compact proof summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for name in [
+              "sergeant-review.json",
+              "sergeant-verification.json",
+              "sergeant-proof-suite.json",
+              "sergeant-final-proof.json",
+          ]:
+              payload = json.loads(Path(name).read_text(encoding="utf-8"))
+              summary = {
+                  "file": name,
+                  "passed": payload.get("passed"),
+                  "phases": payload.get("phases"),
+                  "status": payload.get("status"),
+                  "verdict": payload.get("verdict"),
+                  "summary": payload.get("summary"),
+              }
+              print(json.dumps(summary, sort_keys=True))
+          PY
+      - name: Upload Sergeant evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sergeant-foundation-proof
+          path: sergeant-*.json
+          if-no-files-found: error
+      - name: Enforce Sergeant gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          suite = json.loads(Path("sergeant-proof-suite.json").read_text(encoding="utf-8"))
+          final = json.loads(Path("sergeant-final-proof.json").read_text(encoding="utf-8"))
+          failed = []
+          if suite.get("passed") is not True:
+              failed.append(f"proof-suite phases={suite.get('phases')}")
+          if final.get("passed") is not True:
+              failed.append(f"final-proof={final}")
+          if failed:
+              raise SystemExit("Sergeant gate failed: " + "; ".join(failed))
+          PY
