@@ -1,0 +1,55 @@
+name: TGCHECKM8 Foundation Proof
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-contracts:
+    name: Rust contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Formatting
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Contract tests
+        run: cargo test --workspace --all-targets
+
+  sergeant-proof:
+    name: Sergeant deterministic final proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SERGEANT_CPL_ENABLED: "false"
+      SERGEANT_CPL_POLICY: disabled
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Sergeant
+        run: python -m pip install --disable-pip-version-check sergeant-reviewer==0.4.0
+      - name: Repository review
+        run: sergeant review . --pretty
+      - name: Verification standard
+        run: sergeant verify-standard . --pretty
+      - name: Proof suite
+        run: sergeant proof-suite . --pretty
+      - name: Final proof
+        run: sergeant final-proof . --pretty
