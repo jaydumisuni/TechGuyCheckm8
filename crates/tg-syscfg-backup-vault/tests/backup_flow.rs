@@ -16,7 +16,7 @@ use tg_serial_doctor::{
 use tg_serial_platform::{reserve_and_run_doctor, PlatformDoctorReservation};
 use tg_syscfg_backup_vault::{
     capture_encrypt_verify_backup, required_backup_permissions, BackupAuthorization,
-    FileBackupVault, VaultKey,
+    BackupVaultRequest, CapturedSysCfgList, FileBackupVault, VaultKey,
 };
 use tg_syscfg_read_transport::{
     bind_read_endpoint, required_transport_permissions, ReadExchangeReceipt,
@@ -253,6 +253,27 @@ fn authorization(session_id: Uuid, device_hash: &str, current_tick: u64) -> Back
     }
 }
 
+macro_rules! run_backup {
+    ($endpoint:expr, $session_id:expr, $device_hash:expr, $receipt:expr, $raw:expr, $authorization:expr, $vault:expr, $key:expr) => {{
+        let provider = provider_manifest();
+        let context = logical_context($session_id, $device_hash);
+        let receipt = $receipt;
+        let authorization = $authorization;
+        capture_encrypt_verify_backup(BackupVaultRequest {
+            capture: CapturedSysCfgList {
+                endpoint: $endpoint,
+                provider: &provider,
+                context: &context,
+                read_receipt: &receipt,
+                raw_response: $raw,
+            },
+            authorization: &authorization,
+            vault: $vault,
+            key: $key,
+        })
+    }};
+}
+
 fn secure_temp_dir() -> PathBuf {
     let path = std::env::temp_dir().join(format!("tgcheckm8-vault-{}", Uuid::new_v4()));
     fs::create_dir(&path).expect("temporary vault directory");
@@ -276,15 +297,15 @@ fn complete_list_is_snapshotted_encrypted_reopened_and_rollback_ready() {
     let root = secure_temp_dir();
     let vault = FileBackupVault::open_existing(&root).expect("vault should open");
     let key = VaultKey::from_bytes("test-key-v1", [7u8; 32]).expect("key should build");
-    let evidence = capture_encrypt_verify_backup(
+    let evidence = run_backup!(
         &endpoint,
-        &provider_manifest(),
-        &logical_context(session_id, &device_hash),
-        &list_receipt(&endpoint, raw),
+        session_id,
+        &device_hash,
+        list_receipt(&endpoint, raw),
         raw,
-        &authorization(session_id, &device_hash, 20),
+        authorization(session_id, &device_hash, 20),
         &vault,
-        &key,
+        &key
     )
     .expect("complete backup should pass");
 
@@ -317,15 +338,15 @@ fn missing_required_backup_key_blocks_snapshot_and_receipt() {
     let root = secure_temp_dir();
     let vault = FileBackupVault::open_existing(&root).expect("vault should open");
     let key = VaultKey::from_bytes("test-key-v1", [7u8; 32]).expect("key should build");
-    let result = capture_encrypt_verify_backup(
+    let result = run_backup!(
         &endpoint,
-        &provider_manifest(),
-        &logical_context(session_id, &device_hash),
-        &list_receipt(&endpoint, raw),
+        session_id,
+        &device_hash,
+        list_receipt(&endpoint, raw),
         raw,
-        &authorization(session_id, &device_hash, 20),
+        authorization(session_id, &device_hash, 20),
         &vault,
-        &key,
+        &key
     );
     assert!(result.is_err());
     assert_eq!(fs::read_dir(&root).expect("vault directory").count(), 0);
@@ -345,15 +366,15 @@ fn print_receipt_cannot_be_promoted_to_full_backup() {
     let root = secure_temp_dir();
     let vault = FileBackupVault::open_existing(&root).expect("vault should open");
     let key = VaultKey::from_bytes("test-key-v1", [7u8; 32]).expect("key should build");
-    assert!(capture_encrypt_verify_backup(
+    assert!(run_backup!(
         &endpoint,
-        &provider_manifest(),
-        &logical_context(session_id, &device_hash),
-        &receipt,
+        session_id,
+        &device_hash,
+        receipt,
         raw,
-        &authorization(session_id, &device_hash, 20),
+        authorization(session_id, &device_hash, 20),
         &vault,
-        &key,
+        &key
     )
     .is_err());
     cleanup(&root);
@@ -366,15 +387,15 @@ fn wrong_key_and_ciphertext_tampering_are_detected() {
     let root = secure_temp_dir();
     let vault = FileBackupVault::open_existing(&root).expect("vault should open");
     let key = VaultKey::from_bytes("test-key-v1", [7u8; 32]).expect("key should build");
-    let evidence = capture_encrypt_verify_backup(
+    let evidence = run_backup!(
         &endpoint,
-        &provider_manifest(),
-        &logical_context(session_id, &device_hash),
-        &list_receipt(&endpoint, raw),
+        session_id,
+        &device_hash,
+        list_receipt(&endpoint, raw),
         raw,
-        &authorization(session_id, &device_hash, 20),
+        authorization(session_id, &device_hash, 20),
         &vault,
-        &key,
+        &key
     )
     .expect("complete backup should pass");
     let wrong = VaultKey::from_bytes("test-key-v1", [8u8; 32]).expect("wrong key should build");
@@ -402,26 +423,30 @@ fn missing_permission_and_expired_lease_block_before_persistence() {
     let key = VaultKey::from_bytes("test-key-v1", [7u8; 32]).expect("key should build");
     let mut denied = authorization(session_id, &device_hash, 20);
     denied.granted_permissions.remove(&Permission::VaultWrite);
-    assert!(capture_encrypt_verify_backup(
+    assert!(run_backup!(
         &endpoint,
-        &provider_manifest(),
-        &logical_context(session_id, &device_hash),
-        &list_receipt(&endpoint, raw),
+        session_id,
+        &device_hash,
+        list_receipt(&endpoint, raw),
         raw,
-        &denied,
+        denied,
         &vault,
-        &key,
+        &key
     )
     .is_err());
-    assert!(capture_encrypt_verify_backup(
+    assert!(run_backup!(
         &endpoint,
-        &provider_manifest(),
-        &logical_context(session_id, &device_hash),
-        &list_receipt(&endpoint, raw),
+        session_id,
+        &device_hash,
+        list_receipt(&endpoint, raw),
         raw,
-        &authorization(session_id, &device_hash, endpoint.lease.expires_at_tick),
+        authorization(
+            session_id,
+            &device_hash,
+            endpoint.lease.expires_at_tick
+        ),
         &vault,
-        &key,
+        &key
     )
     .is_err());
     assert_eq!(fs::read_dir(&root).expect("vault directory").count(), 0);
