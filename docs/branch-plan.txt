@@ -1,0 +1,1 @@
+architecture/tgcheckm8-core-v1
