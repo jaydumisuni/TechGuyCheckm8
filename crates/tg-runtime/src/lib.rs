@@ -92,7 +92,10 @@ impl RuntimeLedger {
         run_id: Uuid,
         session_id: Uuid,
     ) -> Result<RunRecord, RuntimeError> {
-        let record = self.runs.get_mut(&run_id).ok_or(RuntimeError::RunNotFound)?;
+        let record = self
+            .runs
+            .get_mut(&run_id)
+            .ok_or(RuntimeError::RunNotFound)?;
         if record.session_id != session_id {
             return Err(RuntimeError::SessionMismatch);
         }
@@ -119,20 +122,15 @@ impl RuntimeLedger {
         )
     }
 
-    pub fn complete(
-        &mut self,
-        run_id: Uuid,
-        worker_id: &str,
-    ) -> Result<RunRecord, RuntimeError> {
+    pub fn complete(&mut self, run_id: Uuid, worker_id: &str) -> Result<RunRecord, RuntimeError> {
         self.transition(run_id, worker_id, RunState::Active, RunState::Completed)
     }
 
-    pub fn fail(
-        &mut self,
-        run_id: Uuid,
-        worker_id: &str,
-    ) -> Result<RunRecord, RuntimeError> {
-        let record = self.runs.get_mut(&run_id).ok_or(RuntimeError::RunNotFound)?;
+    pub fn fail(&mut self, run_id: Uuid, worker_id: &str) -> Result<RunRecord, RuntimeError> {
+        let record = self
+            .runs
+            .get_mut(&run_id)
+            .ok_or(RuntimeError::RunNotFound)?;
         if record.worker_id != worker_id {
             return Err(RuntimeError::WorkerMismatch);
         }
@@ -158,7 +156,10 @@ impl RuntimeLedger {
         expected: RunState,
         next: RunState,
     ) -> Result<RunRecord, RuntimeError> {
-        let record = self.runs.get_mut(&run_id).ok_or(RuntimeError::RunNotFound)?;
+        let record = self
+            .runs
+            .get_mut(&run_id)
+            .ok_or(RuntimeError::RunNotFound)?;
         if record.worker_id != worker_id {
             return Err(RuntimeError::WorkerMismatch);
         }
