@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use serde::Deserialize;
 use tg_apple_observe::{
     default_apple_dfu_rule, lock_identity, match_reconnect, observe, ModeRule,
     ObservationCatalog, ObservationError, ObservationSource, RawUsbObservation,
@@ -57,6 +58,9 @@ fn usbliter8_marker_promotes_dfu_observation_to_pwned_dfu() {
     assert!(observed.evidence_complete);
     assert_ne!(observed.ecid_hash.as_deref(), Some(SYNTHETIC_ECID));
     assert_ne!(observed.serial_hash.as_deref(), Some(PWND_SERIAL));
+    let serialized = serde_json::to_string(&observed).unwrap();
+    assert!(!serialized.contains(SYNTHETIC_ECID));
+    assert!(!serialized.contains(PWND_SERIAL));
 }
 
 #[test]
@@ -139,4 +143,82 @@ fn incomplete_dfu_identity_cannot_be_locked() {
         lock_identity(&observed),
         Err(ObservationError::MissingEcid)
     );
+}
+
+#[derive(Debug, Deserialize)]
+struct RecordedFixture {
+    synthetic: bool,
+    catalog: Vec<ModeRule>,
+    observations: Vec<FixtureObservation>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FixtureObservation {
+    name: String,
+    vendor_id: u16,
+    product_id: u16,
+    serial: Option<String>,
+    product_type: Option<String>,
+    board_config: Option<String>,
+    source: ObservationSource,
+    expected_mode: DeviceMode,
+    expected_pwn_provider: Option<String>,
+    expected_identity_match: Option<bool>,
+}
+
+impl FixtureObservation {
+    fn raw(&self) -> RawUsbObservation {
+        RawUsbObservation {
+            vendor_id: self.vendor_id,
+            product_id: self.product_id,
+            serial: self.serial.clone(),
+            product_type: self.product_type.clone(),
+            board_config: self.board_config.clone(),
+            source: self.source.clone(),
+        }
+    }
+}
+
+#[test]
+fn synthetic_fixture_proves_pwnd_to_purple_identity_continuity() {
+    let fixture: RecordedFixture = serde_json::from_str(include_str!(
+        "../../../fixtures/apple/usbliter8-a12-pwnd-to-purple.synthetic.json"
+    ))
+    .unwrap();
+    assert!(fixture.synthetic);
+
+    let catalog = ObservationCatalog {
+        rules: fixture.catalog,
+    };
+    let pwned_fixture = fixture
+        .observations
+        .iter()
+        .find(|observation| observation.name == "pwned_dfu")
+        .unwrap();
+    let purple_fixture = fixture
+        .observations
+        .iter()
+        .find(|observation| observation.name == "purple_reconnect")
+        .unwrap();
+
+    let pwned = observe(&catalog, &pwned_fixture.raw()).unwrap();
+    assert_eq!(pwned.mode, pwned_fixture.expected_mode);
+    assert_eq!(
+        pwned.pwn_provider,
+        pwned_fixture.expected_pwn_provider.clone()
+    );
+    let locked = lock_identity(&pwned).unwrap();
+
+    let purple = observe(&catalog, &purple_fixture.raw()).unwrap();
+    assert_eq!(purple.mode, purple_fixture.expected_mode);
+    let decision = match_reconnect(
+        &locked,
+        &purple,
+        &BTreeSet::from([DeviceMode::PurpleDiagnostic]),
+    );
+    assert_eq!(
+        decision.matched,
+        purple_fixture.expected_identity_match.unwrap_or(false)
+    );
+    assert!(decision.blockers.is_empty());
 }
