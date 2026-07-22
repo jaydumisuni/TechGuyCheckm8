@@ -33,11 +33,7 @@ fn manifest(
         source_commit: "afe8b5c8998fce63e76c0b2a88c606c61e2950c7".to_owned(),
         declared_licence: Some("research-source-review-required".to_owned()),
         uf2_sha256: firmware_hash,
-        supported_cpids: BTreeSet::from([
-            "8006".to_owned(),
-            "8020".to_owned(),
-            "8030".to_owned(),
-        ]),
+        supported_cpids: BTreeSet::from(["8006".to_owned(), "8020".to_owned(), "8030".to_owned()]),
         hardware_verified_cpids: BTreeSet::from(["8020".to_owned()]),
         maturity,
         auto_mode: true,
@@ -106,7 +102,7 @@ fn request(node_id: &str) -> PwnDfuRequest {
 }
 
 fn success_log() -> Vec<u8> {
-    b"============ usbliter8 v1.0 ============\ngot Apple DFU device:\nCPID:8020 CPRV:11 CPFM:03 ECID:DEADBEEF00000001\ntook - 812ms\nexploit SUCCESS!\n".to_vec()
+    b"============ usbliter8 v1.0 ============\ngot Apple DFU device:\nCPID:8020 CPRV:11 CPFM:03 ECID:DEADBEEF00000001\ngot Apple DFU device:\nCPID:8020 CPRV:11 CPFM:03 ECID:DEADBEEF00000001 PWND:[usbliter8]\ntook - 812ms\nexploit SUCCESS!\n".to_vec()
 }
 
 #[test]
@@ -121,7 +117,10 @@ fn development_plan_requires_pinned_firmware_and_complete_handoff() {
     assert_eq!(plan.expected_cpid, "8020");
     assert_eq!(plan.firmware_sha256, "11".repeat(32));
     assert_eq!(plan.granted_permissions, required_permissions());
-    assert_eq!(plan.stages.last().unwrap(), &tg_usbliter8::NodeStage::VerifyHostPwndDfu);
+    assert_eq!(
+        plan.stages.last().unwrap(),
+        &tg_usbliter8::NodeStage::VerifyHostPwndDfu
+    );
 
     let unpinned = manifest(McuFamily::Rp2350, Maturity::Discovered, None);
     assert_eq!(
@@ -142,7 +141,9 @@ fn missing_usb_write_permission_blocks_before_handoff() {
 
     assert_eq!(
         build_pwn_plan(&node, &request),
-        Err(Usbliter8Error::MissingPermissions(vec![Permission::UsbWrite]))
+        Err(Usbliter8Error::MissingPermissions(vec![
+            Permission::UsbWrite
+        ]))
     );
 }
 
@@ -181,7 +182,10 @@ fn rp2040_cannot_claim_a13_hardware_verification() {
 #[test]
 fn board_log_requires_self_verified_success() {
     let evidence = parse_board_log(&success_log()).unwrap();
-    assert_eq!(evidence.observed_cpid.as_deref(), Some("8020"));
+    assert_eq!(evidence.initial_cpid.as_deref(), Some("8020"));
+    assert_eq!(evidence.post_exploit_cpid.as_deref(), Some("8020"));
+    assert!(!evidence.initially_pwned);
+    assert!(evidence.post_exploit_pwnd_observed);
     assert!(evidence.success_marker);
     assert!(evidence.self_verified_pwnd);
     assert_eq!(evidence.elapsed_millis, Some(812));

@@ -107,8 +107,10 @@ pub struct PwnDfuPlan {
 pub struct BoardRunEvidence {
     pub log_sha256: String,
     pub log_bytes: usize,
-    pub observed_cpid: Option<String>,
+    pub initial_cpid: Option<String>,
+    pub post_exploit_cpid: Option<String>,
     pub initially_pwned: bool,
+    pub post_exploit_pwnd_observed: bool,
     pub success_marker: bool,
     pub failure_marker: bool,
     pub rediscovery_failed: bool,
@@ -180,8 +182,7 @@ pub fn validate_node_manifest(
     {
         return Err(Usbliter8Error::VerifiedCpidOutsideCoverage);
     }
-    if manifest.mcu_family == McuFamily::Rp2040
-        && manifest.hardware_verified_cpids.contains("8030")
+    if manifest.mcu_family == McuFamily::Rp2040 && manifest.hardware_verified_cpids.contains("8030")
     {
         return Err(Usbliter8Error::A13CannotBeVerifiedOnRp2040);
     }
@@ -303,8 +304,11 @@ pub fn parse_board_log(log: &[u8]) -> Result<BoardRunEvidence, Usbliter8Error> {
         return Err(Usbliter8Error::BoardLogTooLarge(log.len()));
     }
     let log_text = std::str::from_utf8(log).map_err(|_| Usbliter8Error::InvalidUtf8Log)?;
-    let mut observed_cpid = None;
+    let mut initial_cpid = None;
+    let mut post_exploit_cpid = None;
     let mut initially_pwned = false;
+    let mut post_exploit_pwnd_observed = false;
+    let mut identity_count = 0_usize;
     let mut success_marker = false;
     let mut failure_marker = false;
     let mut rediscovery_failed = false;
@@ -319,10 +323,18 @@ pub fn parse_board_log(log: &[u8]) -> Result<BoardRunEvidence, Usbliter8Error> {
             continue;
         }
         if identity_line_expected {
-            observed_cpid = parse_tag(trimmed, "CPID:")
+            let parsed_cpid = parse_tag(trimmed, "CPID:")
                 .map(|value| normalize_cpid(&value))
                 .transpose()?;
-            initially_pwned = trimmed.contains("PWND:[");
+            let pwnd = trimmed.contains("PWND:[");
+            if identity_count == 0 {
+                initial_cpid = parsed_cpid;
+                initially_pwned = pwnd;
+            } else {
+                post_exploit_cpid = parsed_cpid;
+                post_exploit_pwnd_observed |= pwnd;
+            }
+            identity_count += 1;
             identity_line_expected = false;
         }
         if trimmed.contains("already PWNED!") {
@@ -353,13 +365,18 @@ pub fn parse_board_log(log: &[u8]) -> Result<BoardRunEvidence, Usbliter8Error> {
         && !failure_marker
         && !rediscovery_failed
         && unsupported_cpid.is_none()
-        && observed_cpid.is_some();
+        && initial_cpid.is_some()
+        && post_exploit_cpid.is_some()
+        && !initially_pwned
+        && post_exploit_pwnd_observed;
 
     Ok(BoardRunEvidence {
         log_sha256: sha256_bytes(log),
         log_bytes: log.len(),
-        observed_cpid,
+        initial_cpid,
+        post_exploit_cpid,
         initially_pwned,
+        post_exploit_pwnd_observed,
         success_marker,
         failure_marker,
         rediscovery_failed,
@@ -381,13 +398,16 @@ pub fn finalize_pwn_proof(
     if plan.expected_cpid != locked_identity.cpid {
         failures.push("plan CPID no longer matches the locked device".to_owned());
     }
-    if board.observed_cpid.as_deref() != Some(plan.expected_cpid.as_str()) {
-        failures.push("board observed a different or missing CPID".to_owned());
+    if board.initial_cpid.as_deref() != Some(plan.expected_cpid.as_str()) {
+        failures.push("board intake observed a different or missing CPID".to_owned());
+    }
+    if board.post_exploit_cpid.as_deref() != Some(plan.expected_cpid.as_str()) {
+        failures.push("board post-exploit observation has a different or missing CPID".to_owned());
     }
     if board.initially_pwned {
         failures.push("board reported that the device was already pwned".to_owned());
     }
-    if !board.success_marker || !board.self_verified_pwnd {
+    if !board.success_marker || !board.self_verified_pwnd || !board.post_exploit_pwnd_observed {
         failures.push("board did not produce self-verified pwn success".to_owned());
     }
     if board.failure_marker || board.rediscovery_failed || board.unsupported_cpid.is_some() {
@@ -437,8 +457,8 @@ fn normalize_cpid(value: &str) -> Result<String, Usbliter8Error> {
         .strip_prefix("0x")
         .or_else(|| trimmed.strip_prefix("0X"))
         .unwrap_or(trimmed);
-    let parsed = u16::from_str_radix(raw, 16)
-        .map_err(|_| Usbliter8Error::InvalidCpid(value.to_owned()))?;
+    let parsed =
+        u16::from_str_radix(raw, 16).map_err(|_| Usbliter8Error::InvalidCpid(value.to_owned()))?;
     Ok(format!("{parsed:04X}"))
 }
 
