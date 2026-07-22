@@ -22,6 +22,7 @@ members = [
     "crates/tg-purple-boot",
     "crates/tg-syscfg-serial",
     "crates/tg-serial-doctor",
+    "crates/tg-serial-platform",
 ]
 resolver = "2"
 
@@ -38,4 +39,5 @@ serde_json = "1"
 sha2 = "0.10"
 thiserror = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
+serialport = { version = "=4.9.0", default-features = false, features = ["usbportinfo-interface"] }
 tg-contracts = { path = "crates/tg-contracts" }
