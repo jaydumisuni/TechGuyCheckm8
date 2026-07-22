@@ -99,7 +99,11 @@ fn verify_journal_reports_chain_summary() {
 fn stable_manifest_inspection_reports_policy_result() {
     let root = TestDirectory::new();
     let path = root.0.join("engine.json");
-    fs::write(&path, serde_json::to_vec(&manifest(Maturity::Stable)).unwrap()).unwrap();
+    fs::write(
+        &path,
+        serde_json::to_vec(&manifest(Maturity::Stable)).unwrap(),
+    )
+    .unwrap();
 
     let output = execute([
         "inspect-engine".to_owned(),
@@ -116,7 +120,11 @@ fn stable_manifest_inspection_reports_policy_result() {
 fn beta_manifest_is_not_misreported_as_stable() {
     let root = TestDirectory::new();
     let path = root.0.join("engine.json");
-    fs::write(&path, serde_json::to_vec(&manifest(Maturity::Beta)).unwrap()).unwrap();
+    fs::write(
+        &path,
+        serde_json::to_vec(&manifest(Maturity::Beta)).unwrap(),
+    )
+    .unwrap();
 
     let output = execute([
         "inspect-engine".to_owned(),
@@ -133,7 +141,11 @@ fn beta_manifest_is_not_misreported_as_stable() {
 fn invalid_profile_is_rejected() {
     let root = TestDirectory::new();
     let path = root.0.join("engine.json");
-    fs::write(&path, serde_json::to_vec(&manifest(Maturity::Stable)).unwrap()).unwrap();
+    fs::write(
+        &path,
+        serde_json::to_vec(&manifest(Maturity::Stable)).unwrap(),
+    )
+    .unwrap();
 
     assert!(matches!(
         execute([
