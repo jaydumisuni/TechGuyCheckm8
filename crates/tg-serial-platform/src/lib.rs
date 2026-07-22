@@ -196,7 +196,7 @@ impl SerialOpenProbe for SerialportOpenProbe {
                 "serial open blocked: control-line side effects were not acknowledged".to_owned(),
             );
         }
-        let mut port = build_port(port_name, settings)
+        let port = build_port(port_name, settings)
             .open()
             .map_err(|error| format!("serial open failed: {error}"))?;
 
@@ -277,6 +277,13 @@ pub struct PlatformDoctorSession {
     pub lease: LeaseGrant,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlatformDoctorReservation {
+    pub owner: LeaseOwner,
+    pub current_tick: u64,
+    pub ttl_ticks: u64,
+}
+
 pub fn reserve_and_run_doctor<P: SerialOpenProbe>(
     manifest: &SerialDoctorManifest,
     context: &SerialDoctorContext,
@@ -284,31 +291,35 @@ pub fn reserve_and_run_doctor<P: SerialOpenProbe>(
     observations: &[RawSerialPortObservation],
     probe: &mut P,
     leases: &mut LeaseManager,
-    owner: LeaseOwner,
-    current_tick: u64,
-    ttl_ticks: u64,
+    reservation: PlatformDoctorReservation,
 ) -> Result<PlatformDoctorSession, SerialPlatformError> {
-    if owner.session_id != context.session_id {
+    if reservation.owner.session_id != context.session_id {
         return Err(SerialPlatformError::LeaseSessionMismatch);
     }
     let selected = select_candidate(manifest, host.clone(), observations)
         .map_err(SerialPlatformError::Doctor)?;
-    let lease = acquire_preopen_lease(leases, &selected, owner.clone(), current_tick, ttl_ticks)?;
+    let lease = acquire_preopen_lease(
+        leases,
+        &selected,
+        reservation.owner.clone(),
+        reservation.current_tick,
+        reservation.ttl_ticks,
+    )?;
 
     let result = run_doctor(manifest, context, host, observations, probe);
     let (_, report) = match result {
         Ok(value) => value,
         Err(error) => {
-            let _ = leases.release(lease.lease_id, &owner);
+            let _ = leases.release(lease.lease_id, &reservation.owner);
             return Err(SerialPlatformError::Doctor(error));
         }
     };
     if report.candidate.hardware_fingerprint != selected.receipt.hardware_fingerprint {
-        let _ = leases.release(lease.lease_id, &owner);
+        let _ = leases.release(lease.lease_id, &reservation.owner);
         return Err(SerialPlatformError::CandidateChangedDuringProbe);
     }
     if report.verdict != SerialDoctorVerdict::Ready {
-        let _ = leases.release(lease.lease_id, &owner);
+        let _ = leases.release(lease.lease_id, &reservation.owner);
         return Err(SerialPlatformError::DoctorBlocked(report.failures));
     }
     Ok(PlatformDoctorSession { report, lease })
