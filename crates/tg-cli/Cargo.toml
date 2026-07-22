@@ -1,0 +1,20 @@
+[package]
+name = "tg-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "tgcheckm8"
+path = "src/main.rs"
+
+[dependencies]
+serde_json.workspace = true
+thiserror.workspace = true
+tg-contracts.workspace = true
+tg-journal = { path = "../tg-journal" }
+
+[dev-dependencies]
+uuid.workspace = true
