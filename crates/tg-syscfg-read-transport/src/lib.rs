@@ -45,12 +45,9 @@ impl SysCfgReadOperation {
     ) -> Result<EncodedCommand, SysCfgReadTransportError> {
         match self {
             Self::List => encode_command(manifest, &SysCfgCommand::List),
-            Self::Print { key } => encode_command(
-                manifest,
-                &SysCfgCommand::Print {
-                    key: key.clone(),
-                },
-            ),
+            Self::Print { key } => {
+                encode_command(manifest, &SysCfgCommand::Print { key: key.clone() })
+            }
         }
         .map_err(SysCfgReadTransportError::SysCfg)
     }
@@ -295,9 +292,7 @@ impl SysCfgReadCommandChannel for SerialportSysCfgReadChannel {
                     response.extend_from_slice(&chunk[..count]);
                     consecutive_timeouts = 0;
                     if response.len() > policy.max_response_bytes {
-                        return Err(SysCfgReadTransportError::ResponseTooLarge(
-                            response.len(),
-                        ));
+                        return Err(SysCfgReadTransportError::ResponseTooLarge(response.len()));
                     }
                     if contains_prompt_line(&response) {
                         return Ok(RawCommandResponse::from_channel(
@@ -372,16 +367,10 @@ fn contains_prompt_line(response: &[u8]) -> bool {
 }
 
 fn trim_ascii(mut value: &[u8]) -> &[u8] {
-    while value
-        .first()
-        .is_some_and(|byte| byte.is_ascii_whitespace())
-    {
+    while value.first().is_some_and(|byte| byte.is_ascii_whitespace()) {
         value = &value[1..];
     }
-    while value
-        .last()
-        .is_some_and(|byte| byte.is_ascii_whitespace())
-    {
+    while value.last().is_some_and(|byte| byte.is_ascii_whitespace()) {
         value = &value[..value.len() - 1];
     }
     value
