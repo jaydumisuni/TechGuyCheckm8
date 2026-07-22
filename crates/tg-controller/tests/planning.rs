@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use tg_contracts::{
-    DeviceIdentity, DeviceMode, FirmwareIdentity, HostIdentity, Maturity, OperationKind, Permission,
-    SessionRequest, SessionState,
+    DeviceIdentity, DeviceMode, FirmwareIdentity, HostIdentity, Maturity, OperationKind,
+    Permission, SessionRequest, SessionState,
 };
 use tg_controller::{prepare_session, PlanOutcome};
 use tg_policy::{PolicyContext, PolicyProfile};
