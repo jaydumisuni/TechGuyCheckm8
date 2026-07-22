@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use tg_contracts::{
-    EvidenceClass, EvidenceRecord, RedactionClass, StageResult, CONTRACT_VERSION,
-};
+use tg_contracts::{EvidenceClass, EvidenceRecord, RedactionClass, StageResult, CONTRACT_VERSION};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,7 +39,10 @@ pub fn simulate(input: &SimulationInput) -> SimulationOutcome {
     {
         return SimulationOutcome {
             result: StageResult::IdentityMismatch,
-            events: vec!["identity_mismatch".to_owned(), "execution_blocked".to_owned()],
+            events: vec![
+                "identity_mismatch".to_owned(),
+                "execution_blocked".to_owned(),
+            ],
             evidence: vec![evidence(
                 input,
                 1,
@@ -105,10 +106,7 @@ pub fn simulate(input: &SimulationInput) -> SimulationOutcome {
         },
         Scenario::Disconnect => SimulationOutcome {
             result: StageResult::DeviceDisconnected,
-            events: vec![
-                "stage_started".to_owned(),
-                "device_disconnected".to_owned(),
-            ],
+            events: vec!["stage_started".to_owned(), "device_disconnected".to_owned()],
             evidence: vec![evidence(
                 input,
                 1,
