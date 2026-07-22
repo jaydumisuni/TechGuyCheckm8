@@ -82,7 +82,7 @@ impl Journal {
                     .last_sequence
                     .checked_add(1)
                     .ok_or(JournalError::SequenceExhausted)?;
-                Ok((next, verification.last_hash))
+                Ok::<_, JournalError>((next, verification.last_hash))
             })
             .transpose()?
             .unwrap_or((1, None));
