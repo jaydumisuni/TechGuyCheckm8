@@ -183,7 +183,9 @@ impl SerialOpenProbe for ReadyProbe {
     }
 }
 
-fn bound_endpoint(current_tick: u64) -> (tg_syscfg_read_transport::BoundReadEndpoint, Uuid, String) {
+fn bound_endpoint(
+    current_tick: u64,
+) -> (tg_syscfg_read_transport::BoundReadEndpoint, Uuid, String) {
     let session_id = Uuid::new_v4();
     let device_hash = "c".repeat(64);
     let selected = select_candidate(&doctor_manifest(), HostPlatform::Windows, &[observation()])
@@ -297,7 +299,9 @@ fn complete_list_is_snapshotted_encrypted_reopened_and_rollback_ready() {
     assert!(!durable.contains("LL/A"));
     let stored = fs::read(vault.object_path_for_local_operator(evidence.encrypted.object_id))
         .expect("encrypted object should exist");
-    assert!(!stored.windows("PRIVATE-SERIAL".len()).any(|part| part == b"PRIVATE-SERIAL"));
+    assert!(!stored
+        .windows("PRIVATE-SERIAL".len())
+        .any(|part| part == b"PRIVATE-SERIAL"));
 
     let recovered = vault
         .read_for_rollback(&evidence.backup, &evidence.encrypted, &key)
