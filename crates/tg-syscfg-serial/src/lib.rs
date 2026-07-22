@@ -608,9 +608,7 @@ impl fmt::Debug for SelectedFieldMutation {
 struct PlannedFieldMutation {
     key: String,
     class: SysCfgFieldClass,
-    before_value: String,
     before_hash: String,
-    after_value: String,
     after_hash: String,
     print_command: EncodedCommand,
     write_command: EncodedCommand,
@@ -757,9 +755,7 @@ pub fn build_write_transaction_plan(
         mutations.push(PlannedFieldMutation {
             key: change.field_key.clone(),
             class: change.class.clone(),
-            before_value: before_value.to_owned(),
             before_hash: change.expected_before_hash.clone(),
-            after_value: requested_value.clone(),
             after_hash: change.requested_after_hash.clone(),
             print_command,
             write_command,
