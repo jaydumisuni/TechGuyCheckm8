@@ -1,0 +1,75 @@
+name: One-shot Purple Test Shadowing Fix
+
+on:
+  push:
+    branches:
+      - service/purple-boot-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: purple-shadow-fix-once
+  cancel-in-progress: false
+
+jobs:
+  patch-and-remove-self:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: service/purple-boot-v1
+          fetch-depth: 0
+      - name: Rename permission fixtures and remove workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/tg-purple-boot/tests/route.rs")
+          text = path.read_text(encoding="utf-8")
+          old = '''    let mut request = request(&route);
+    request
+        .granted_permissions
+        .remove(&tg_contracts::Permission::SerialRead);
+    assert_eq!(
+        build_purple_boot_plan(&route, &request),
+        Err(PurpleBootError::PermissionGrantMismatch)
+    );
+
+    let mut request = request(&route);
+    request
+        .granted_permissions
+        .insert(tg_contracts::Permission::SysCfgRestoreSameBoard);
+    assert_eq!(
+        build_purple_boot_plan(&route, &request),
+        Err(PurpleBootError::PermissionGrantMismatch)
+    );'''
+          new = '''    let mut missing_grant = request(&route);
+    missing_grant
+        .granted_permissions
+        .remove(&tg_contracts::Permission::SerialRead);
+    assert_eq!(
+        build_purple_boot_plan(&route, &missing_grant),
+        Err(PurpleBootError::PermissionGrantMismatch)
+    );
+
+    let mut broad_grant = request(&route);
+    broad_grant
+        .granted_permissions
+        .insert(tg_contracts::Permission::SysCfgRestoreSameBoard);
+    assert_eq!(
+        build_purple_boot_plan(&route, &broad_grant),
+        Err(PurpleBootError::PermissionGrantMismatch)
+    );'''
+          if old not in text:
+              raise SystemExit("expected shadowing block was not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          cargo fmt --all
+          rm .github/workflows/patch-purple-shadow-once.yml
+          git config user.name "TGCHECKM8 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "test: avoid shadowing Purple request fixture"
+          git push origin HEAD:service/purple-boot-v1
