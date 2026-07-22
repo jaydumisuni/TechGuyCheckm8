@@ -134,7 +134,7 @@ pub fn validate_provider(
         if manifest
             .declared_licence
             .as_deref()
-            .is_none_or(str::is_empty)
+            .map_or(true, str::is_empty)
         {
             return Err(PurpleError::MissingDeclaredLicence);
         }
