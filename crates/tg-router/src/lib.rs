@@ -46,7 +46,7 @@ pub fn select_route(
                 .device
                 .chip
                 .as_ref()
-                .is_none_or(|chip| !route.chips.contains(chip))
+                .map_or(true, |chip| !route.chips.contains(chip))
         {
             reasons.push("chip");
         }
@@ -57,10 +57,9 @@ pub fn select_route(
             reasons.push("host");
         }
         if !route.firmware_versions.is_empty()
-            && request
-                .firmware
-                .as_ref()
-                .is_none_or(|firmware| !route.firmware_versions.contains(&firmware.version))
+            && request.firmware.as_ref().map_or(true, |firmware| {
+                !route.firmware_versions.contains(&firmware.version)
+            })
         {
             reasons.push("firmware");
         }
