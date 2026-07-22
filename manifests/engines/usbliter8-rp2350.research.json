@@ -1,0 +1,39 @@
+{
+  "schema_version": "tgcheckm8.usbliter8-node.v1",
+  "node_id": "usbliter8.waveshare-rp2350-usb-a",
+  "firmware_version": "upstream-afe8b5c8",
+  "mcu_family": "rp2350",
+  "board_model": "waveshare_rp2350_usb_a",
+  "source_repository": "https://github.com/prdgmshift/usbliter8",
+  "source_commit": "afe8b5c8998fce63e76c0b2a88c606c61e2950c7",
+  "declared_licence": null,
+  "uf2_sha256": null,
+  "supported_cpids": [
+    "8006",
+    "8020",
+    "8030"
+  ],
+  "hardware_verified_cpids": [],
+  "maturity": "discovered",
+  "auto_mode": true,
+  "required_hardware": [
+    "waveshare_rp2350_usb_a_or_approved_equivalent",
+    "short_lightning_usb_a_cable",
+    "direct_dplus_dminus_path",
+    "host_serial_monitor"
+  ],
+  "requested_permissions": [
+    "device_observe",
+    "usb_read",
+    "usb_write",
+    "serial_read"
+  ],
+  "proof_requirements": [
+    "board_firmware_hash_verified",
+    "board_dfu_identity_verified",
+    "board_success_marker",
+    "board_self_verified_pwnd",
+    "host_pwnd_reconnect_verified",
+    "same_device_identity"
+  ]
+}

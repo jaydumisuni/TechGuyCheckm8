@@ -1,0 +1,18 @@
+[package]
+name = "tg-usbliter8"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+tg-contracts.workspace = true
+tg-apple-observe = { path = "../tg-apple-observe" }
+
+[dev-dependencies]
+serde_json.workspace = true
