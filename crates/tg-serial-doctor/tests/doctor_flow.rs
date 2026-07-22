@@ -6,9 +6,8 @@ use tg_purple_boot::PurpleBootFinalProof;
 use tg_serial_doctor::{
     acquire_serial_lease, required_permissions, run_doctor, select_candidate, verify_reconnect,
     HostPlatform, RawSerialPortObservation, ReconnectContinuity, SerialDoctorContext,
-    SerialDoctorError, SerialDoctorManifest, SerialDoctorVerdict, SerialMatchRule,
-    SerialOpenProbe, SerialParity, SerialProbeObservation, SerialSettings, SerialStopBits,
-    SERIAL_DOCTOR_VERSION,
+    SerialDoctorError, SerialDoctorManifest, SerialDoctorVerdict, SerialMatchRule, SerialOpenProbe,
+    SerialParity, SerialProbeObservation, SerialSettings, SerialStopBits, SERIAL_DOCTOR_VERSION,
 };
 use tg_syscfg_serial::SerialLink;
 use uuid::Uuid;

@@ -143,7 +143,9 @@ pub fn validate_manifest(
             return Err(SerialDoctorError::InvalidRuleIdentity(rule.rule_id.clone()));
         }
         if rule.vid.is_some() != rule.pid.is_some() {
-            return Err(SerialDoctorError::IncompleteUsbIdentity(rule.rule_id.clone()));
+            return Err(SerialDoctorError::IncompleteUsbIdentity(
+                rule.rule_id.clone(),
+            ));
         }
         if rule.vid.is_none()
             && rule.manufacturer_contains.is_none()
@@ -175,7 +177,9 @@ pub fn validate_manifest(
         "serial_lease_acquired",
     ] {
         if !manifest.proof_requirements.contains(required) {
-            return Err(SerialDoctorError::MissingMandatoryProof(required.to_owned()));
+            return Err(SerialDoctorError::MissingMandatoryProof(
+                required.to_owned(),
+            ));
         }
     }
 
@@ -330,10 +334,7 @@ fn match_candidate(
             link: rule.link.clone(),
             hardware_fingerprint: fingerprint,
             port_name_hash: hash_text(&observation.port_name),
-            physical_location_hash: observation
-                .physical_location
-                .as_deref()
-                .map(hash_text),
+            physical_location_hash: observation.physical_location.as_deref().map(hash_text),
             vid: observation.vid,
             pid: observation.pid,
             manufacturer_hash: observation.manufacturer.as_deref().map(hash_text),
@@ -651,9 +652,7 @@ impl From<LeaseError> for SerialDoctorError {
     }
 }
 
-pub fn summarize_candidates(
-    observations: &[RawSerialPortObservation],
-) -> BTreeMap<String, usize> {
+pub fn summarize_candidates(observations: &[RawSerialPortObservation]) -> BTreeMap<String, usize> {
     let mut summary = BTreeMap::new();
     for observation in observations {
         let key = match (observation.vid, observation.pid) {

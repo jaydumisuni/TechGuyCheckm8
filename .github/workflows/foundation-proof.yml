@@ -1,34 +1,121 @@
-name: TGCHECKM8 Branch Formatter
+name: TGCHECKM8 Foundation Proof
 
 on:
-  push:
-    branches:
-      - service/serial-doctor-v1
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: foundation-proof-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  format-and-restore:
+  rust-contracts:
+    name: Rust contracts
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
-      - name: Format branch and restore proof workflow
+          components: rustfmt, clippy
+      - name: Formatting
+        id: formatting
         run: |
-          set -euo pipefail
           cargo fmt --all
-          git show origin/main:.github/workflows/foundation-proof.yml > .github/workflows/foundation-proof.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml crates/tg-serial-doctor .github/workflows/foundation-proof.yml
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git commit -m "Phase 5D: apply rustfmt and restore proof workflow"
-          git push origin HEAD:service/serial-doctor-v1
+          git diff --exit-code > rustfmt.patch
+      - name: Upload rustfmt patch
+        if: always() && steps.formatting.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt-patch
+          path: rustfmt.patch
+          if-no-files-found: error
+      - name: Clippy
+        id: clippy
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
+      - name: Upload Clippy diagnostics
+        if: always() && steps.clippy.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-diagnostics
+          path: clippy.log
+          if-no-files-found: error
+      - name: Contract tests
+        run: cargo test --workspace --all-targets
+
+  sergeant-proof:
+    name: Sergeant deterministic final proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SERGEANT_CPL_ENABLED: "false"
+      SERGEANT_CPL_POLICY: disabled
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Sergeant
+        run: python -m pip install --quiet --disable-pip-version-check sergeant-reviewer==0.4.0
+      - name: Repository review
+        run: sergeant review . --pretty > sergeant-review.json
+      - name: Verification standard
+        run: sergeant verify-standard . --pretty > sergeant-verification.json
+      - name: Proof suite report
+        run: sergeant proof-suite . --no-fail --pretty > sergeant-proof-suite.json
+      - name: Final proof report
+        run: sergeant final-proof . --no-fail --pretty > sergeant-final-proof.json
+      - name: Print compact proof summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for name in [
+              "sergeant-review.json",
+              "sergeant-verification.json",
+              "sergeant-proof-suite.json",
+              "sergeant-final-proof.json",
+          ]:
+              payload = json.loads(Path(name).read_text(encoding="utf-8"))
+              summary = {
+                  "file": name,
+                  "passed": payload.get("passed"),
+                  "phases": payload.get("phases"),
+                  "status": payload.get("status"),
+                  "verdict": payload.get("verdict"),
+                  "summary": payload.get("summary"),
+              }
+              print(json.dumps(summary, sort_keys=True))
+          PY
+      - name: Upload Sergeant evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sergeant-foundation-proof
+          path: sergeant-*.json
+          if-no-files-found: error
+      - name: Enforce Sergeant gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          suite = json.loads(Path("sergeant-proof-suite.json").read_text(encoding="utf-8"))
+          final = json.loads(Path("sergeant-final-proof.json").read_text(encoding="utf-8"))
+          failed = []
+          if suite.get("passed") is not True:
+              failed.append(f"proof-suite phases={suite.get('phases')}")
+          if final.get("passed") is not True:
+              failed.append(f"final-proof={final}")
+          if failed:
+              raise SystemExit("Sergeant gate failed: " + "; ".join(failed))
+          PY
