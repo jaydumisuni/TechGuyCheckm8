@@ -35,11 +35,7 @@ fn success_has_independent_execution_transition_and_cleanup_proof() {
     let proof = evaluate_final_proof(
         &[
             requirement("execution", EvidenceClass::Execution, &[]),
-            requirement(
-                "transition",
-                EvidenceClass::Transition,
-                &["fixture-worker"],
-            ),
+            requirement("transition", EvidenceClass::Transition, &["fixture-worker"]),
             requirement("cleanup", EvidenceClass::Recovery, &[]),
         ],
         &outcome.evidence,
@@ -57,7 +53,10 @@ fn identity_mismatch_blocks_execution() {
     assert!(!outcome.events.contains(&"stage_started".to_owned()));
     assert_eq!(
         outcome.events,
-        vec!["identity_mismatch".to_owned(), "execution_blocked".to_owned()]
+        vec![
+            "identity_mismatch".to_owned(),
+            "execution_blocked".to_owned()
+        ]
     );
 }
 
@@ -101,5 +100,8 @@ fn requirement_helper_uses_set_semantics() {
         EvidenceClass::Transition,
         &["worker", "worker"],
     );
-    assert_eq!(proof.disallowed_sources, BTreeSet::from(["worker".to_owned()]));
+    assert_eq!(
+        proof.disallowed_sources,
+        BTreeSet::from(["worker".to_owned()])
+    );
 }
