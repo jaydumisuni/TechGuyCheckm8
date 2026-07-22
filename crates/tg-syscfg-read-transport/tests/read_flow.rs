@@ -252,7 +252,7 @@ impl SysCfgReadCommandChannel for FakeChannel {
         command: &tg_syscfg_serial::EncodedCommand,
         _policy: &ReadFramePolicy,
     ) -> Result<RawCommandResponse, SysCfgReadTransportError> {
-        Ok(RawCommandResponse::synthetic_for_test(
+        Ok(RawCommandResponse::from_channel(
             self.response.clone(),
             self.write_count_override
                 .unwrap_or_else(|| command.as_bytes().len()),
@@ -356,7 +356,7 @@ fn transport_grant_requires_serial_transmit_permission() {
     let mut insufficient = required_transport_permissions();
     insufficient.remove(&Permission::SerialWrite);
 
-    assert_eq!(
+    assert!(matches!(
         bind_read_endpoint(
             selected,
             platform_session,
@@ -369,7 +369,7 @@ fn transport_grant_requires_serial_transmit_permission() {
             },
         ),
         Err(SysCfgReadTransportError::PermissionGrantMismatch)
-    );
+    ));
 }
 
 #[test]
@@ -403,7 +403,7 @@ fn expired_lease_is_rejected_before_exchange() {
     )
     .expect("Doctor should reserve endpoint");
 
-    assert_eq!(
+    assert!(matches!(
         bind_read_endpoint(
             selected,
             platform_session,
@@ -416,7 +416,7 @@ fn expired_lease_is_rejected_before_exchange() {
             },
         ),
         Err(SysCfgReadTransportError::LeaseExpired)
-    );
+    ));
 }
 
 #[test]
@@ -447,7 +447,7 @@ fn wrong_write_count_and_missing_prompt_are_rejected() {
         write_count_override: None,
         prompt_verified: true,
     };
-    assert_eq!(
+    assert!(matches!(
         execute_read(
             &mut missing_prompt,
             &endpoint,
@@ -459,7 +459,7 @@ fn wrong_write_count_and_missing_prompt_are_rejected() {
             &frame_policy(),
         ),
         Err(SysCfgReadTransportError::PromptNotVerified)
-    );
+    ));
 }
 
 #[test]
