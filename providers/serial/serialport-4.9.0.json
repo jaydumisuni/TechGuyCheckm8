@@ -1,0 +1,30 @@
+{
+  "schema_version": "tgcheckm8.serial-platform-provider.v1",
+  "provider_id": "serialport-rs",
+  "crate_name": "serialport",
+  "version": "4.9.0",
+  "source_repository": "https://github.com/serialport/serialport-rs",
+  "source_commit": "2a62b225b2dd043fa982f91d0fb54c7e26fb221e",
+  "licence": "MPL-2.0",
+  "cargo": {
+    "exact_version": "=4.9.0",
+    "default_features": false,
+    "features": [
+      "usbportinfo-interface"
+    ]
+  },
+  "capabilities": {
+    "enumerate_ports": true,
+    "open_port_guarded": true,
+    "read_serial_data": false,
+    "write_serial_data": false,
+    "production_adapter_rules": false,
+    "automatic_control_line_approval": false
+  },
+  "maturity": "simulation_tested",
+  "notes": [
+    "Linux may pulse DTR during open even when preservation is requested.",
+    "Opening requires explicit control-line side-effect acknowledgement.",
+    "No production VID/PID or descriptive adapter rule is included."
+  ]
+}
