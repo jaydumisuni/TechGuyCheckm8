@@ -151,7 +151,7 @@ impl Journal {
 #[derive(Debug)]
 struct WriterLock {
     path: PathBuf,
-    _file: File,
+    file: Option<File>,
 }
 
 impl WriterLock {
@@ -168,12 +168,16 @@ impl WriterLock {
         writeln!(file, "{}", std::process::id())?;
         file.flush()?;
         file.sync_data()?;
-        Ok(Self { path, _file: file })
+        Ok(Self {
+            path,
+            file: Some(file),
+        })
     }
 }
 
 impl Drop for WriterLock {
     fn drop(&mut self) {
+        drop(self.file.take());
         let _ = fs::remove_file(&self.path);
     }
 }
