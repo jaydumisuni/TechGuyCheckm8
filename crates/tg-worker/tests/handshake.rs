@@ -4,9 +4,7 @@ use tg_contracts::{
     EngineManifest, FailureBehavior, Maturity, Permission, Provenance, CONTRACT_VERSION,
 };
 use tg_protocol::PROTOCOL_VERSION;
-use tg_worker::{
-    validate_worker_hello, WorkerExpectation, WorkerHandshakeError, WorkerHello,
-};
+use tg_worker::{validate_worker_hello, WorkerExpectation, WorkerHandshakeError, WorkerHello};
 
 fn set<T: Ord>(values: impl IntoIterator<Item = T>) -> BTreeSet<T> {
     values.into_iter().collect()
