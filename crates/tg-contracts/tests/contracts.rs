@@ -51,7 +51,10 @@ fn blocked_route_cannot_smuggle_engines_or_permissions() {
     assert!(decision.route_id.is_none());
     assert!(decision.engine_ids.is_empty());
     assert!(decision.granted_permissions.is_empty());
-    assert_eq!(decision.rationale_codes, ["unknown_device"]);
+    assert_eq!(
+        decision.rationale_codes,
+        vec!["unknown_device".to_owned()]
+    );
 }
 
 #[test]
