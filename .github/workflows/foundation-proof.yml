@@ -34,7 +34,16 @@ jobs:
           path: rustfmt.patch
           if-no-files-found: error
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
+      - name: Upload Clippy diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-diagnostics
+          path: clippy.log
+          if-no-files-found: error
       - name: Contract tests
         run: cargo test --workspace --all-targets
 
@@ -96,7 +105,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
-          from pathlib import Path
+          from pathlib import import Path
 
           suite = json.loads(Path("sergeant-proof-suite.json").read_text(encoding="utf-8"))
           final = json.loads(Path("sergeant-final-proof.json").read_text(encoding="utf-8"))
