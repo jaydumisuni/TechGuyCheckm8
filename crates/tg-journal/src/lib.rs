@@ -23,6 +23,7 @@ pub struct JournalEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JournalVerification {
+    pub session_id: Option<Uuid>,
     pub entries: usize,
     pub last_sequence: u64,
     pub last_hash: Option<String>,
@@ -35,6 +36,7 @@ pub struct Journal {
     session_id: Uuid,
     next_sequence: u64,
     previous_hash: Option<String>,
+    _writer_lock: WriterLock,
 }
 
 impl Journal {
@@ -50,11 +52,18 @@ impl Journal {
         if !session_dir.starts_with(&root) {
             return Err(JournalError::PathEscape(session_dir));
         }
+        let writer_lock = WriterLock::acquire(&session_dir)?;
 
         let path = session_dir.join("events.jsonl");
         reject_symlink(&path)?;
         let existing = if path.exists() {
-            Some(verify_file(&path)?)
+            let verification = verify_file(&path)?;
+            if verification.session_id.is_some()
+                && verification.session_id != Some(session_id)
+            {
+                return Err(JournalError::SessionMismatch);
+            }
+            Some(verification)
         } else {
             None
         };
@@ -71,11 +80,13 @@ impl Journal {
 
         let (next_sequence, previous_hash) = existing
             .map(|verification| {
-                (
-                    verification.last_sequence.saturating_add(1),
-                    verification.last_hash,
-                )
+                let next = verification
+                    .last_sequence
+                    .checked_add(1)
+                    .ok_or(JournalError::SequenceExhausted)?;
+                Ok((next, verification.last_hash))
             })
+            .transpose()?
             .unwrap_or((1, None));
 
         Ok(Self {
@@ -84,6 +95,7 @@ impl Journal {
             session_id,
             next_sequence,
             previous_hash,
+            _writer_lock: writer_lock,
         })
     }
 
@@ -100,6 +112,10 @@ impl Journal {
         if event_type.trim().is_empty() {
             return Err(JournalError::MissingEventType);
         }
+        let following_sequence = self
+            .next_sequence
+            .checked_add(1)
+            .ok_or(JournalError::SequenceExhausted)?;
 
         let hash = compute_hash(
             self.session_id,
@@ -126,9 +142,39 @@ impl Journal {
         self.file.flush()?;
         self.file.sync_data()?;
 
-        self.next_sequence = self.next_sequence.saturating_add(1);
+        self.next_sequence = following_sequence;
         self.previous_hash = Some(entry.hash.clone());
         Ok(entry)
+    }
+}
+
+#[derive(Debug)]
+struct WriterLock {
+    path: PathBuf,
+    _file: File,
+}
+
+impl WriterLock {
+    fn acquire(session_dir: &Path) -> Result<Self, JournalError> {
+        let path = session_dir.join(".writer.lock");
+        reject_symlink(&path)?;
+        let mut file = match OpenOptions::new().create_new(true).write(true).open(&path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(JournalError::WriterLockExists(path));
+            }
+            Err(error) => return Err(JournalError::Io(error)),
+        };
+        writeln!(file, "{}", std::process::id())?;
+        file.flush()?;
+        file.sync_data()?;
+        Ok(Self { path, _file: file })
+    }
+}
+
+impl Drop for WriterLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
     }
 }
 
@@ -138,17 +184,26 @@ pub fn verify_file(path: impl AsRef<Path>) -> Result<JournalVerification, Journa
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
     let mut expected_sequence = 1_u64;
+    let mut expected_session: Option<Uuid> = None;
     let mut previous_hash: Option<String> = None;
     let mut entries = 0_usize;
+    let mut sequence_exhausted = false;
 
     while let Some(line) = read_bounded_line(&mut reader, MAX_JOURNAL_LINE_BYTES)? {
-        if line.iter().all(u8::is_ascii_whitespace) {
+        if line.iter().all(|byte| byte.is_ascii_whitespace()) {
             continue;
+        }
+        if sequence_exhausted {
+            return Err(JournalError::SequenceExhausted);
         }
         let entry: JournalEntry = serde_json::from_slice(&line)?;
         if entry.schema_version != JOURNAL_SCHEMA_VERSION {
             return Err(JournalError::UnsupportedVersion(entry.schema_version));
         }
+        if expected_session.is_some() && expected_session != Some(entry.session_id) {
+            return Err(JournalError::SessionMismatch);
+        }
+        expected_session.get_or_insert(entry.session_id);
         if entry.sequence != expected_sequence {
             return Err(JournalError::SequenceMismatch {
                 expected: expected_sequence,
@@ -173,14 +228,25 @@ pub fn verify_file(path: impl AsRef<Path>) -> Result<JournalVerification, Journa
             });
         }
 
-        expected_sequence = expected_sequence.saturating_add(1);
+        match expected_sequence.checked_add(1) {
+            Some(next) => expected_sequence = next,
+            None => sequence_exhausted = true,
+        }
         previous_hash = Some(entry.hash);
         entries = entries.saturating_add(1);
     }
 
+    let last_sequence = if entries == 0 {
+        0
+    } else if sequence_exhausted {
+        u64::MAX
+    } else {
+        expected_sequence - 1
+    };
     Ok(JournalVerification {
+        session_id: expected_session,
         entries,
-        last_sequence: expected_sequence.saturating_sub(1),
+        last_sequence,
         last_hash: previous_hash,
     })
 }
@@ -262,7 +328,7 @@ fn read_bounded_line<R: BufRead>(
         reader.consume(take);
 
         if newline.is_some() {
-            while matches!(line.last(), Some(b'\n' | b'\r')) {
+            while matches!(line.last(), Some(b'\n') | Some(b'\r')) {
                 line.pop();
             }
             return Ok(Some(line));
@@ -278,8 +344,14 @@ pub enum JournalError {
     PathEscape(PathBuf),
     #[error("journal symlinks are rejected: {0}")]
     SymlinkRejected(PathBuf),
+    #[error("another writer already owns this session journal: {0}")]
+    WriterLockExists(PathBuf),
+    #[error("journal contains entries from another session")]
+    SessionMismatch,
     #[error("journal event type is required")]
     MissingEventType,
+    #[error("journal sequence space is exhausted")]
+    SequenceExhausted,
     #[error("journal line exceeds the maximum size: {0} bytes")]
     LineTooLarge(usize),
     #[error("unsupported journal version: {0}")]
