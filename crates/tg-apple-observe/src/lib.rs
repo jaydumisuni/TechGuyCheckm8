@@ -125,6 +125,7 @@ pub fn observe(
         )),
         _ => None,
     };
+    let evidence_complete = rule.is_some() && cpid.is_some() && ecid_hash.is_some();
 
     Ok(ObservedAppleDevice {
         schema_version: OBSERVATION_SCHEMA_VERSION.to_owned(),
@@ -138,7 +139,7 @@ pub fn observe(
         board_config: raw.board_config.clone(),
         device_identity_hash,
         source: raw.source.clone(),
-        evidence_complete: rule.is_some() && cpid.is_some() && ecid_hash.is_some(),
+        evidence_complete,
     })
 }
 
