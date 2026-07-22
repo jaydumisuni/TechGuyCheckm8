@@ -1,0 +1,43 @@
+{
+  "schema_version": "tgcheckm8.syscfg-serial.v1",
+  "provider_id": "syscfg.diags.serial.magiccfg-research",
+  "version": "0.1.0-research",
+  "maturity": "discovered",
+  "supported_product_types": ["iPhone11,6"],
+  "supported_board_configs": ["d331pap"],
+  "links": ["usb_serial", "dcsd_serial"],
+  "source_repository": "https://github.com/AldazActivator/MagicCFG-Windows",
+  "source_commit": "2923e2f3d4b478938856ddc03c8be7ac2a458c99",
+  "declared_licence": null,
+  "supports_write": false,
+  "max_response_bytes": 262144,
+  "field_catalog": {
+    "SrNm": {"class": "identity_critical", "writable": false, "max_value_bytes": 128, "response_labels": ["SrNm", "Serial"]},
+    "WMac": {"class": "identity_critical", "writable": false, "max_value_bytes": 64, "response_labels": ["WMac", "Mac"]},
+    "BMac": {"class": "identity_critical", "writable": false, "max_value_bytes": 64, "response_labels": ["BMac", "Mac"]},
+    "EMac": {"class": "identity_critical", "writable": false, "max_value_bytes": 64, "response_labels": ["EMac", "Mac"]},
+    "Regn": {"class": "manufacturing", "writable": false, "max_value_bytes": 64, "response_labels": ["Regn"]},
+    "MLB#": {"class": "identity_critical", "writable": false, "max_value_bytes": 128, "response_labels": ["MLB#"]},
+    "Mod#": {"class": "manufacturing", "writable": false, "max_value_bytes": 128, "response_labels": ["Mod#"]},
+    "RMd#": {"class": "manufacturing", "writable": false, "max_value_bytes": 128, "response_labels": ["RMd#"]},
+    "NvSn": {"class": "identity_critical", "writable": false, "max_value_bytes": 128, "response_labels": ["NvSn"]},
+    "NSrN": {"class": "identity_critical", "writable": false, "max_value_bytes": 128, "response_labels": ["NSrN"]},
+    "LCM#": {"class": "calibration", "writable": false, "max_value_bytes": 128, "response_labels": ["LCM#"]},
+    "BCMS": {"class": "calibration", "writable": false, "max_value_bytes": 128, "response_labels": ["BCMS"]},
+    "FCMS": {"class": "calibration", "writable": false, "max_value_bytes": 128, "response_labels": ["FCMS"]},
+    "MtSN": {"class": "identity_critical", "writable": false, "max_value_bytes": 128, "response_labels": ["MtSN"]},
+    "nandsize": {"class": "diagnostic", "writable": false, "max_value_bytes": 128, "response_labels": ["nandsize"]}
+  },
+  "required_backup_keys": ["SrNm", "Regn", "Mod#", "RMd#", "nandsize"],
+  "requested_read_permissions": ["device_observe", "serial_read", "sys_cfg_read", "vault_write"],
+  "requested_write_permissions": ["device_observe", "serial_read", "serial_write", "sys_cfg_read", "sys_cfg_backup", "sys_cfg_restore_same_board", "vault_read", "vault_write"],
+  "proof_requirements": [
+    "purple_mode_same_device",
+    "full_syscfg_list_captured",
+    "backup_vault_verified",
+    "field_precondition_verified",
+    "typed_write_only",
+    "exact_readback_match",
+    "rollback_verified_or_recovery_required"
+  ]
+}
