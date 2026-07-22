@@ -17,7 +17,9 @@ fn verified_happy_path_is_explicit() {
         SessionState::FinalVerification,
         SessionState::CompletedVerified,
     ] {
-        machine.transition(state).expect("transition should be legal");
+        machine
+            .transition(state)
+            .expect("transition should be legal");
     }
 
     assert_eq!(machine.state(), &SessionState::CompletedVerified);
