@@ -10,9 +10,7 @@ use tg_serial_doctor::{
     SerialOpenProbe, SerialParity, SerialProbeObservation, SerialSettings, SerialStopBits,
     SERIAL_DOCTOR_VERSION,
 };
-use tg_serial_platform::{
-    reserve_and_run_doctor, PlatformDoctorReservation, SerialPlatformError,
-};
+use tg_serial_platform::{reserve_and_run_doctor, PlatformDoctorReservation, SerialPlatformError};
 use tg_syscfg_read_transport::{
     bind_read_endpoint, execute_read, required_transport_permissions, ParsedSysCfgRead,
     RawCommandResponse, ReadFramePolicy, ReadTransportAuthorization, SysCfgReadCommandChannel,
@@ -181,19 +179,11 @@ impl SerialOpenProbe for ReadyProbe {
 
 fn bound_endpoint(
     current_tick: u64,
-) -> (
-    tg_syscfg_read_transport::BoundReadEndpoint,
-    Uuid,
-    String,
-) {
+) -> (tg_syscfg_read_transport::BoundReadEndpoint, Uuid, String) {
     let session_id = Uuid::new_v4();
     let device_hash = "c".repeat(64);
-    let selected = select_candidate(
-        &doctor_manifest(),
-        HostPlatform::Windows,
-        &[observation()],
-    )
-    .expect("candidate should select");
+    let selected = select_candidate(&doctor_manifest(), HostPlatform::Windows, &[observation()])
+        .expect("candidate should select");
     let owner = LeaseOwner {
         session_id,
         worker_id: "syscfg-read-transport".to_owned(),
@@ -327,12 +317,8 @@ fn fixed_print_exchange_returns_catalogued_field() {
 fn transport_grant_requires_serial_transmit_permission() {
     let session_id = Uuid::new_v4();
     let device_hash = "c".repeat(64);
-    let selected = select_candidate(
-        &doctor_manifest(),
-        HostPlatform::Windows,
-        &[observation()],
-    )
-    .expect("candidate should select");
+    let selected = select_candidate(&doctor_manifest(), HostPlatform::Windows, &[observation()])
+        .expect("candidate should select");
     let owner = LeaseOwner {
         session_id,
         worker_id: "syscfg-read-transport".to_owned(),
@@ -376,12 +362,8 @@ fn transport_grant_requires_serial_transmit_permission() {
 fn expired_lease_is_rejected_before_exchange() {
     let session_id = Uuid::new_v4();
     let device_hash = "c".repeat(64);
-    let selected = select_candidate(
-        &doctor_manifest(),
-        HostPlatform::Windows,
-        &[observation()],
-    )
-    .expect("candidate should select");
+    let selected = select_candidate(&doctor_manifest(), HostPlatform::Windows, &[observation()])
+        .expect("candidate should select");
     let owner = LeaseOwner {
         session_id,
         worker_id: "syscfg-read-transport".to_owned(),
