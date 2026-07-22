@@ -1,165 +1,121 @@
-name: TGCHECKM8 Branch Patch
+name: TGCHECKM8 Foundation Proof
 
 on:
-  push:
-    branches:
-      - service/serial-platform-v1
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: foundation-proof-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  patch-format-restore:
+  rust-contracts:
+    name: Rust contracts
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
-      - name: Apply typed reservation patch
+          components: rustfmt, clippy
+      - name: Formatting
+        id: formatting
         run: |
-          set -euo pipefail
+          cargo fmt --all
+          git diff --exit-code > rustfmt.patch
+      - name: Upload rustfmt patch
+        if: always() && steps.formatting.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt-patch
+          path: rustfmt.patch
+          if-no-files-found: error
+      - name: Clippy
+        id: clippy
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
+      - name: Upload Clippy diagnostics
+        if: always() && steps.clippy.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-diagnostics
+          path: clippy.log
+          if-no-files-found: error
+      - name: Contract tests
+        run: cargo test --workspace --all-targets
+
+  sergeant-proof:
+    name: Sergeant deterministic final proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SERGEANT_CPL_ENABLED: "false"
+      SERGEANT_CPL_POLICY: disabled
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Sergeant
+        run: python -m pip install --quiet --disable-pip-version-check sergeant-reviewer==0.4.0
+      - name: Repository review
+        run: sergeant review . --pretty > sergeant-review.json
+      - name: Verification standard
+        run: sergeant verify-standard . --pretty > sergeant-verification.json
+      - name: Proof suite report
+        run: sergeant proof-suite . --no-fail --pretty > sergeant-proof-suite.json
+      - name: Final proof report
+        run: sergeant final-proof . --no-fail --pretty > sergeant-final-proof.json
+      - name: Print compact proof summary
+        run: |
           python - <<'PY'
+          import json
           from pathlib import Path
 
-          lib = Path("crates/tg-serial-platform/src/lib.rs")
-          text = lib.read_text(encoding="utf-8")
-          text = text.replace("let mut port = build_port(port_name, settings)", "let port = build_port(port_name, settings)", 1)
-
-          old = '''#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-          pub struct PlatformDoctorSession {
-              pub report: SerialDoctorReport,
-              pub lease: LeaseGrant,
-          }
-
-          pub fn reserve_and_run_doctor<P: SerialOpenProbe>(
-              manifest: &SerialDoctorManifest,
-              context: &SerialDoctorContext,
-              host: HostPlatform,
-              observations: &[RawSerialPortObservation],
-              probe: &mut P,
-              leases: &mut LeaseManager,
-              owner: LeaseOwner,
-              current_tick: u64,
-              ttl_ticks: u64,
-          ) -> Result<PlatformDoctorSession, SerialPlatformError> {
-              if owner.session_id != context.session_id {
-                  return Err(SerialPlatformError::LeaseSessionMismatch);
+          for name in [
+              "sergeant-review.json",
+              "sergeant-verification.json",
+              "sergeant-proof-suite.json",
+              "sergeant-final-proof.json",
+          ]:
+              payload = json.loads(Path(name).read_text(encoding="utf-8"))
+              summary = {
+                  "file": name,
+                  "passed": payload.get("passed"),
+                  "phases": payload.get("phases"),
+                  "status": payload.get("status"),
+                  "verdict": payload.get("verdict"),
+                  "summary": payload.get("summary"),
               }
-              let selected = select_candidate(manifest, host.clone(), observations)
-                  .map_err(SerialPlatformError::Doctor)?;
-              let lease = acquire_preopen_lease(leases, &selected, owner.clone(), current_tick, ttl_ticks)?;
-
-              let result = run_doctor(manifest, context, host, observations, probe);
-              let (_, report) = match result {
-                  Ok(value) => value,
-                  Err(error) => {
-                      let _ = leases.release(lease.lease_id, &owner);
-                      return Err(SerialPlatformError::Doctor(error));
-                  }
-              };
-              if report.candidate.hardware_fingerprint != selected.receipt.hardware_fingerprint {
-                  let _ = leases.release(lease.lease_id, &owner);
-                  return Err(SerialPlatformError::CandidateChangedDuringProbe);
-              }
-              if report.verdict != SerialDoctorVerdict::Ready {
-                  let _ = leases.release(lease.lease_id, &owner);
-                  return Err(SerialPlatformError::DoctorBlocked(report.failures));
-              }
-              Ok(PlatformDoctorSession { report, lease })
-          }
-          '''
-          new = '''#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-          pub struct PlatformDoctorSession {
-              pub report: SerialDoctorReport,
-              pub lease: LeaseGrant,
-          }
-
-          #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-          pub struct PlatformDoctorReservation {
-              pub owner: LeaseOwner,
-              pub current_tick: u64,
-              pub ttl_ticks: u64,
-          }
-
-          pub fn reserve_and_run_doctor<P: SerialOpenProbe>(
-              manifest: &SerialDoctorManifest,
-              context: &SerialDoctorContext,
-              host: HostPlatform,
-              observations: &[RawSerialPortObservation],
-              probe: &mut P,
-              leases: &mut LeaseManager,
-              reservation: PlatformDoctorReservation,
-          ) -> Result<PlatformDoctorSession, SerialPlatformError> {
-              if reservation.owner.session_id != context.session_id {
-                  return Err(SerialPlatformError::LeaseSessionMismatch);
-              }
-              let selected = select_candidate(manifest, host.clone(), observations)
-                  .map_err(SerialPlatformError::Doctor)?;
-              let lease = acquire_preopen_lease(
-                  leases,
-                  &selected,
-                  reservation.owner.clone(),
-                  reservation.current_tick,
-                  reservation.ttl_ticks,
-              )?;
-
-              let result = run_doctor(manifest, context, host, observations, probe);
-              let (_, report) = match result {
-                  Ok(value) => value,
-                  Err(error) => {
-                      let _ = leases.release(lease.lease_id, &reservation.owner);
-                      return Err(SerialPlatformError::Doctor(error));
-                  }
-              };
-              if report.candidate.hardware_fingerprint != selected.receipt.hardware_fingerprint {
-                  let _ = leases.release(lease.lease_id, &reservation.owner);
-                  return Err(SerialPlatformError::CandidateChangedDuringProbe);
-              }
-              if report.verdict != SerialDoctorVerdict::Ready {
-                  let _ = leases.release(lease.lease_id, &reservation.owner);
-                  return Err(SerialPlatformError::DoctorBlocked(report.failures));
-              }
-              Ok(PlatformDoctorSession { report, lease })
-          }
-          '''
-          if old not in text:
-              raise SystemExit("expected reserve_and_run_doctor block not found")
-          text = text.replace(old, new, 1)
-          lib.write_text(text, encoding="utf-8")
-
-          tests = Path("crates/tg-serial-platform/tests/platform_flow.rs")
-          test_text = tests.read_text(encoding="utf-8")
-          test_text = test_text.replace(
-              "OpenSafetyAcknowledgement, SerialPlatformError, SerialportOpenProbe,",
-              "OpenSafetyAcknowledgement, PlatformDoctorReservation, SerialPlatformError, SerialportOpenProbe,",
-              1,
-          )
-          old_args = '''        owner,
-                  10,
-                  30,
-          '''
-          count = test_text.count(old_args)
-          if count != 3:
-              raise SystemExit(f"expected 3 reservation argument blocks, found {count}")
-          test_text = test_text.replace(
-              old_args,
-              '''        PlatformDoctorReservation {
-                      owner,
-                      current_tick: 10,
-                      ttl_ticks: 30,
-                  },
-          ''',
-          )
-          tests.write_text(test_text, encoding="utf-8")
+              print(json.dumps(summary, sort_keys=True))
           PY
-          cargo fmt --all
-          git show origin/main:.github/workflows/foundation-proof.yml > .github/workflows/foundation-proof.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add crates/tg-serial-platform .github/workflows/foundation-proof.yml
-          git commit -m "Phase 5E: type reservation request and restore proof workflow"
-          git push origin HEAD:service/serial-platform-v1
+      - name: Upload Sergeant evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sergeant-foundation-proof
+          path: sergeant-*.json
+          if-no-files-found: error
+      - name: Enforce Sergeant gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          suite = json.loads(Path("sergeant-proof-suite.json").read_text(encoding="utf-8"))
+          final = json.loads(Path("sergeant-final-proof.json").read_text(encoding="utf-8"))
+          failed = []
+          if suite.get("passed") is not True:
+              failed.append(f"proof-suite phases={suite.get('phases')}")
+          if final.get("passed") is not True:
+              failed.append(f"final-proof={final}")
+          if failed:
+              raise SystemExit("Sergeant gate failed: " + "; ".join(failed))
+          PY
