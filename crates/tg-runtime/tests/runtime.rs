@@ -5,12 +5,8 @@ use uuid::Uuid;
 fn duplicate_session_key_returns_existing_run() {
     let mut ledger = RuntimeLedger::default();
     let session = Uuid::new_v4();
-    let first = ledger
-        .register_run(session, "worker-a", "stage:1")
-        .unwrap();
-    let second = ledger
-        .register_run(session, "worker-a", "stage:1")
-        .unwrap();
+    let first = ledger.register_run(session, "worker-a", "stage:1").unwrap();
+    let second = ledger.register_run(session, "worker-a", "stage:1").unwrap();
 
     let RegisterOutcome::Created(first) = first else {
         panic!("expected created run");
@@ -36,9 +32,8 @@ fn same_key_in_different_sessions_is_not_deduplicated() {
 fn another_session_cannot_cancel_run() {
     let mut ledger = RuntimeLedger::default();
     let session = Uuid::new_v4();
-    let RegisterOutcome::Created(run) = ledger
-        .register_run(session, "worker-a", "stage:1")
-        .unwrap()
+    let RegisterOutcome::Created(run) =
+        ledger.register_run(session, "worker-a", "stage:1").unwrap()
     else {
         unreachable!();
     };
@@ -53,9 +48,8 @@ fn another_session_cannot_cancel_run() {
 fn cancellation_requires_worker_acknowledgement() {
     let mut ledger = RuntimeLedger::default();
     let session = Uuid::new_v4();
-    let RegisterOutcome::Created(run) = ledger
-        .register_run(session, "worker-a", "stage:1")
-        .unwrap()
+    let RegisterOutcome::Created(run) =
+        ledger.register_run(session, "worker-a", "stage:1").unwrap()
     else {
         unreachable!();
     };
@@ -70,9 +64,7 @@ fn cancellation_requires_worker_acknowledgement() {
             to: RunState::Completed,
         })
     );
-    let cancelled = ledger
-        .acknowledge_cancel(run.run_id, "worker-a")
-        .unwrap();
+    let cancelled = ledger.acknowledge_cancel(run.run_id, "worker-a").unwrap();
     assert_eq!(cancelled.state, RunState::Cancelled);
 }
 
@@ -80,9 +72,8 @@ fn cancellation_requires_worker_acknowledgement() {
 fn wrong_worker_cannot_complete_or_acknowledge() {
     let mut ledger = RuntimeLedger::default();
     let session = Uuid::new_v4();
-    let RegisterOutcome::Created(run) = ledger
-        .register_run(session, "worker-a", "stage:1")
-        .unwrap()
+    let RegisterOutcome::Created(run) =
+        ledger.register_run(session, "worker-a", "stage:1").unwrap()
     else {
         unreachable!();
     };
@@ -98,9 +89,8 @@ fn wrong_worker_cannot_complete_or_acknowledge() {
 fn terminal_run_cannot_be_reopened() {
     let mut ledger = RuntimeLedger::default();
     let session = Uuid::new_v4();
-    let RegisterOutcome::Created(run) = ledger
-        .register_run(session, "worker-a", "stage:1")
-        .unwrap()
+    let RegisterOutcome::Created(run) =
+        ledger.register_run(session, "worker-a", "stage:1").unwrap()
     else {
         unreachable!();
     };
