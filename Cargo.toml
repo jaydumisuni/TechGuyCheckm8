@@ -23,6 +23,7 @@ members = [
     "crates/tg-syscfg-serial",
     "crates/tg-serial-doctor",
     "crates/tg-serial-platform",
+    "crates/tg-syscfg-read-transport",
 ]
 resolver = "2"
 
