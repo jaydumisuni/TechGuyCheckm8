@@ -11,3 +11,6 @@ serde.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tg-contracts.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
