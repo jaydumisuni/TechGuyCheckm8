@@ -6,6 +6,11 @@ members = [
     "crates/tg-router",
     "crates/tg-evidence",
     "crates/tg-controller",
+    "crates/tg-protocol",
+    "crates/tg-worker",
+    "crates/tg-leases",
+    "crates/tg-runtime",
+    "crates/tg-simulator",
 ]
 resolver = "2"
 
