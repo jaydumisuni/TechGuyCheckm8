@@ -24,6 +24,7 @@ members = [
     "crates/tg-serial-doctor",
     "crates/tg-serial-platform",
     "crates/tg-syscfg-read-transport",
+    "crates/tg-syscfg-backup-vault",
 ]
 resolver = "2"
 
@@ -41,4 +42,7 @@ sha2 = "0.10"
 thiserror = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
 serialport = { version = "=4.9.0", default-features = false, features = ["usbportinfo-interface"] }
+chacha20poly1305 = "=0.10.1"
+getrandom = "=0.2.16"
+zeroize = "=1.8.1"
 tg-contracts = { path = "crates/tg-contracts" }
