@@ -23,22 +23,24 @@ jobs:
         with:
           components: rustfmt, clippy
       - name: Formatting
+        id: formatting
         run: |
           cargo fmt --all
           git diff --exit-code > rustfmt.patch
       - name: Upload rustfmt patch
-        if: failure()
+        if: steps.formatting.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: rustfmt-patch
           path: rustfmt.patch
           if-no-files-found: error
       - name: Clippy
+        id: clippy
         run: |
           set -o pipefail
           cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
       - name: Upload Clippy diagnostics
-        if: failure()
+        if: steps.clippy.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: clippy-diagnostics
