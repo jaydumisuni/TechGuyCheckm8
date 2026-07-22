@@ -31,9 +31,7 @@ where
             inspect_engine(Path::new(&args[1]), profile)
         }
         "help" | "--help" | "-h" => Ok(usage()),
-        known if matches!(known, "status" | "verify-journal" | "inspect-engine") => {
-            Err(CliError::Usage(usage()))
-        }
+        "status" | "verify-journal" | "inspect-engine" => Err(CliError::Usage(usage())),
         other => Err(CliError::UnknownCommand(other.to_owned())),
     }
 }
