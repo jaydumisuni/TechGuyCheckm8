@@ -1,0 +1,24 @@
+[package]
+name = "tg-syscfg-read-transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serialport.workspace = true
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+tg-contracts.workspace = true
+tg-leases = { path = "../tg-leases" }
+tg-serial-doctor = { path = "../tg-serial-doctor" }
+tg-serial-platform = { path = "../tg-serial-platform" }
+tg-syscfg-serial = { path = "../tg-syscfg-serial" }
+
+[dev-dependencies]
+serde_json.workspace = true
+tg-purple = { path = "../tg-purple" }
+tg-purple-boot = { path = "../tg-purple-boot" }
