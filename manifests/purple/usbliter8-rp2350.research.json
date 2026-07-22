@@ -1,0 +1,38 @@
+{
+  "schema_version": "tgcheckm8.purple.v1",
+  "provider_id": "purple.a12-a13.usbliter8-rp2350",
+  "version": "0.1.0-research",
+  "generation": "a12_a13",
+  "pwn_provider": "usbliter8_rp2350",
+  "supported_product_types": [
+    "iPhone11,2",
+    "iPhone11,4",
+    "iPhone11,6",
+    "iPhone11,8",
+    "iPhone12,1",
+    "iPhone12,3",
+    "iPhone12,5"
+  ],
+  "transports": [
+    "usb_serial",
+    "dcsd_serial"
+  ],
+  "required_hardware": [
+    "rp2350_usb_host",
+    "lightning_usb_a_cable"
+  ],
+  "maturity": "discovered",
+  "source_repository": "https://github.com/prdgmshift/usbliter8",
+  "source_commit": "afe8b5c8998fce63e76c0b2a88c606c61e2950c7",
+  "declared_licence": null,
+  "proof_requirements": [
+    "device_identity_locked",
+    "pwned_dfu_verified",
+    "bootchain_integrity_verified",
+    "purple_mode_verified",
+    "purple_identity_match"
+  ],
+  "supports_syscfg_read": false,
+  "supports_syscfg_write": false,
+  "allowed_write_classes": []
+}

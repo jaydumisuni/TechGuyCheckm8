@@ -15,6 +15,7 @@ members = [
     "crates/tg-process",
     "crates/tg-journal",
     "crates/tg-cli",
+    "crates/tg-purple",
 ]
 resolver = "2"
 
