@@ -4,9 +4,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use tg_contracts::Permission;
 use tg_purple::{SysCfgBackupReceipt, SysCfgSnapshot};
-use tg_syscfg_read_transport::{
-    BoundReadEndpoint, ReadExchangeReceipt, SysCfgReadOperation,
-};
+use tg_syscfg_read_transport::{BoundReadEndpoint, ReadExchangeReceipt, SysCfgReadOperation};
 use tg_syscfg_serial::{
     build_backup_receipt, capture_snapshot, parse_syscfg_list, required_read_permissions,
     SysCfgSerialContext, SysCfgSerialError, SysCfgSerialProviderManifest, VaultWriteReceipt,
@@ -79,7 +77,8 @@ pub fn capture_encrypt_verify_backup(
     {
         return Err(SysCfgBackupVaultError::ResponseBindingMismatch);
     }
-    let snapshot = capture_snapshot(provider, context, &dump).map_err(SysCfgBackupVaultError::SysCfg)?;
+    let snapshot =
+        capture_snapshot(provider, context, &dump).map_err(SysCfgBackupVaultError::SysCfg)?;
     if !snapshot.verified || snapshot.blob_sha256 != read_receipt.response_sha256 {
         return Err(SysCfgBackupVaultError::SnapshotNotVerified);
     }
