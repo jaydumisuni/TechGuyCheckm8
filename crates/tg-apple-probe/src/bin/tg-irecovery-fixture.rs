@@ -2,7 +2,7 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args != ["-q"] {
+    if args.len() != 1 || args[0] != "-q" {
         eprintln!("fixture accepts only the read-only -q profile");
         return ExitCode::from(2);
     }
