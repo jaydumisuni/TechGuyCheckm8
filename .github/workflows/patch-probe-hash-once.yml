@@ -1,0 +1,88 @@
+name: One-shot Probe Hash Pinning Patch
+
+on:
+  push:
+    branches:
+      - service/apple-probe-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: probe-hash-patch-once
+  cancel-in-progress: false
+
+jobs:
+  patch-and-remove-self:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: service/apple-probe-v1
+          fetch-depth: 0
+      - name: Make executable pins optional for research but mandatory for execution
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/tg-apple-probe/src/lib.rs")
+          text = path.read_text(encoding="utf-8")
+
+          replacements = [
+              (
+                  "    pub expected_executable_sha256: String,",
+                  "    pub expected_executable_sha256: Option<String>,",
+              ),
+              (
+                  "        || manifest.source_repository.trim().is_empty()\n        || manifest.source_commit.trim().is_empty()\n        || manifest.expected_executable_sha256.trim().is_empty()",
+                  "        || manifest.source_repository.trim().is_empty()\n        || manifest.source_commit.trim().is_empty()",
+              ),
+              (
+                  "    if !manifest.supported_hosts.contains(host) {\n        return Err(ProbeError::UnsupportedHost(host.to_owned()));\n    }\n",
+                  "    if !manifest.supported_hosts.contains(host) {\n        return Err(ProbeError::UnsupportedHost(host.to_owned()));\n    }\n    if let Some(hash) = manifest.expected_executable_sha256.as_deref() {\n        if !is_sha256(hash) {\n            return Err(ProbeError::InvalidExecutableHash);\n        }\n    }\n",
+              ),
+              (
+                  "        if manifest.maturity != Maturity::Stable {\n            return Err(ProbeError::ImmatureStableProbe);\n        }\n        match manifest.declared_licence.as_deref() {",
+                  "        if manifest.maturity != Maturity::Stable {\n            return Err(ProbeError::ImmatureStableProbe);\n        }\n        if manifest.expected_executable_sha256.is_none() {\n            return Err(ProbeError::StableProbeUnpinned);\n        }\n        match manifest.declared_licence.as_deref() {",
+              ),
+              (
+                  "    let hash_match = if executable_present {\n        match sha256_file(&installation.executable) {\n            Ok(actual) if actual == manifest.expected_executable_sha256 => true,\n            Ok(_) => {\n                findings.push(\"probe executable hash mismatch\".to_owned());\n                false\n            }\n            Err(error) => {\n                findings.push(error.to_string());\n                false\n            }\n        }\n    } else {\n        false\n    };",
+                  "    let hash_match = match (\n        executable_present,\n        manifest.expected_executable_sha256.as_deref(),\n    ) {\n        (true, Some(expected)) => match sha256_file(&installation.executable) {\n            Ok(actual) if actual == expected => true,\n            Ok(_) => {\n                findings.push(\"probe executable hash mismatch\".to_owned());\n                false\n            }\n            Err(error) => {\n                findings.push(error.to_string());\n                false\n            }\n        },\n        (true, None) => {\n            findings.push(\"probe executable is not pinned by SHA-256\".to_owned());\n            false\n        }\n        (false, _) => false,\n    };",
+              ),
+              (
+                  "    let executable_sha256 = sha256_file(&installation.executable)?;\n    if executable_sha256 != manifest.expected_executable_sha256 {\n        return Err(ProbeError::ExecutableHashMismatch);\n    }",
+                  "    let expected_executable_sha256 = manifest\n        .expected_executable_sha256\n        .as_deref()\n        .ok_or(ProbeError::UnpinnedExecutable)?;\n    let executable_sha256 = sha256_file(&installation.executable)?;\n    if executable_sha256 != expected_executable_sha256 {\n        return Err(ProbeError::ExecutableHashMismatch);\n    }",
+              ),
+              (
+                  "fn to_hex(bytes: &[u8]) -> String {",
+                  "fn is_sha256(value: &str) -> bool {\n    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())\n}\n\nfn to_hex(bytes: &[u8]) -> String {",
+              ),
+              (
+                  "    #[error(\"probe manifest identity or executable hash is incomplete\")]\n    IncompleteManifest,",
+                  "    #[error(\"probe manifest identity is incomplete\")]\n    IncompleteManifest,\n    #[error(\"probe executable SHA-256 must contain exactly 64 hexadecimal characters\")]\n    InvalidExecutableHash,",
+              ),
+              (
+                  "    #[error(\"stable policy requires a Stable probe\")]\n    ImmatureStableProbe,",
+                  "    #[error(\"stable policy requires a Stable probe\")]\n    ImmatureStableProbe,\n    #[error(\"stable policy requires a pinned probe executable\")]\n    StableProbeUnpinned,",
+              ),
+              (
+                  "    #[error(\"probe executable hash does not match the manifest\")]\n    ExecutableHashMismatch,",
+                  "    #[error(\"probe executable is not pinned by the manifest\")]\n    UnpinnedExecutable,\n    #[error(\"probe executable hash does not match the manifest\")]\n    ExecutableHashMismatch,",
+              ),
+          ]
+
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f"expected patch target was not found:\n{old}")
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding="utf-8")
+          PY
+          cargo fmt --all
+          rm .github/workflows/patch-probe-hash-once.yml
+          git config user.name "TGCHECKM8 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "policy: require pinned hashes for probe execution"
+          git push origin HEAD:service/apple-probe-v1
