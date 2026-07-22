@@ -131,7 +131,11 @@ pub fn validate_provider(
         if manifest.maturity != Maturity::Stable {
             return Err(PurpleError::ImmatureStableProvider);
         }
-        if manifest.declared_licence.as_deref().is_none_or(str::is_empty) {
+        if manifest
+            .declared_licence
+            .as_deref()
+            .is_none_or(str::is_empty)
+        {
             return Err(PurpleError::MissingDeclaredLicence);
         }
     }
@@ -320,7 +324,10 @@ pub fn evaluate_write_request(
             continue;
         }
         let Some(field) = snapshot.fields.get(&change.field_key) else {
-            blockers.push(format!("field is absent from snapshot: {}", change.field_key));
+            blockers.push(format!(
+                "field is absent from snapshot: {}",
+                change.field_key
+            ));
             continue;
         };
         if field.key != change.field_key
@@ -330,12 +337,18 @@ pub fn evaluate_write_request(
             blockers.push(format!("field precondition mismatch: {}", change.field_key));
         }
         if !field.checksum_valid || !field.writable {
-            blockers.push(format!("field is not safely writable: {}", change.field_key));
+            blockers.push(format!(
+                "field is not safely writable: {}",
+                change.field_key
+            ));
         }
         if change.requested_after_hash.trim().is_empty()
             || change.requested_after_hash == change.expected_before_hash
         {
-            blockers.push(format!("field has no valid requested change: {}", change.field_key));
+            blockers.push(format!(
+                "field has no valid requested change: {}",
+                change.field_key
+            ));
         }
         if matches!(
             change.class,
@@ -344,7 +357,10 @@ pub fn evaluate_write_request(
             blockers.push(format!("field class is blocked: {}", change.field_key));
         }
         if !manifest.allowed_write_classes.contains(&change.class) {
-            blockers.push(format!("provider policy blocks field: {}", change.field_key));
+            blockers.push(format!(
+                "provider policy blocks field: {}",
+                change.field_key
+            ));
         }
         if request.policy_profile == "stable"
             && !matches!(

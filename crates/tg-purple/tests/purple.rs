@@ -38,10 +38,7 @@ fn a12_provider(maturity: Maturity, declared_licence: Option<&str>) -> PurplePro
             "iPhone12,3".to_owned(),
             "iPhone12,5".to_owned(),
         ]),
-        transports: BTreeSet::from([
-            PurpleTransport::UsbSerial,
-            PurpleTransport::DcsdSerial,
-        ]),
+        transports: BTreeSet::from([PurpleTransport::UsbSerial, PurpleTransport::DcsdSerial]),
         required_hardware: BTreeSet::from([
             "rp2350_usb_host".to_owned(),
             "lightning_usb_a_cable".to_owned(),
@@ -154,8 +151,14 @@ fn a12_plan_requires_usbliter8_hardware_and_full_transition_proof() {
     let plan = build_boot_plan(&provider, "development").unwrap();
 
     assert!(plan.required_hardware.contains("rp2350_usb_host"));
-    assert_eq!(plan.stages.first(), Some(&PurpleBootStage::LockDeviceIdentity));
-    assert_eq!(plan.stages.last(), Some(&PurpleBootStage::VerifyPurpleIdentity));
+    assert_eq!(
+        plan.stages.first(),
+        Some(&PurpleBootStage::LockDeviceIdentity)
+    );
+    assert_eq!(
+        plan.stages.last(),
+        Some(&PurpleBootStage::VerifyPurpleIdentity)
+    );
     assert!(plan.required_permissions.contains(&Permission::UsbWrite));
     assert!(plan.required_permissions.contains(&Permission::SerialRead));
 }
@@ -247,10 +250,7 @@ fn mismatched_readback_never_verifies_success() {
         session_id: request.session_id,
         device_identity_hash: request.current_device_identity_hash.clone(),
         board_config: request.current_board_config.clone(),
-        observed_field_hashes: BTreeMap::from([(
-            "DiagFlag".to_owned(),
-            "unexpected".to_owned(),
-        )]),
+        observed_field_hashes: BTreeMap::from([("DiagFlag".to_owned(), "unexpected".to_owned())]),
         transport_write_acknowledged: true,
         rollback_package_sha256: "rollback-hash".to_owned(),
         valid: true,
@@ -272,10 +272,7 @@ fn exact_same_device_readback_verifies() {
         session_id: request.session_id,
         device_identity_hash: request.current_device_identity_hash.clone(),
         board_config: request.current_board_config.clone(),
-        observed_field_hashes: BTreeMap::from([(
-            "DiagFlag".to_owned(),
-            "after-diag".to_owned(),
-        )]),
+        observed_field_hashes: BTreeMap::from([("DiagFlag".to_owned(), "after-diag".to_owned())]),
         transport_write_acknowledged: true,
         rollback_package_sha256: "rollback-hash".to_owned(),
         valid: true,
