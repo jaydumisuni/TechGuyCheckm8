@@ -33,12 +33,7 @@ fn multi_resource_acquire_is_atomic() {
         .unwrap();
 
     let second_owner = owner("worker-b");
-    let result = manager.acquire(
-        set([usb.clone(), device.clone()]),
-        second_owner,
-        0,
-        10,
-    );
+    let result = manager.acquire(set([usb.clone(), device.clone()]), second_owner, 0, 10);
 
     assert_eq!(result, Err(LeaseError::ResourceConflict(vec![usb])));
     assert!(manager.active_for(&device).is_none());
@@ -52,12 +47,7 @@ fn same_lease_owns_all_requested_resources() {
     let device = resource(ResourceKind::Device, "device-1");
     let primary_owner = owner("worker-a");
     let grant = manager
-        .acquire(
-            set([usb.clone(), device.clone()]),
-            primary_owner,
-            4,
-            6,
-        )
+        .acquire(set([usb.clone(), device.clone()]), primary_owner, 4, 6)
         .unwrap();
 
     assert_eq!(manager.active_for(&usb).unwrap().lease_id, grant.lease_id);
@@ -93,9 +83,7 @@ fn expired_lease_releases_every_resource() {
         resource(ResourceKind::Usb, "port-1"),
         resource(ResourceKind::Device, "device-1"),
     ]);
-    let grant = manager
-        .acquire(resources, owner("worker-a"), 5, 5)
-        .unwrap();
+    let grant = manager.acquire(resources, owner("worker-a"), 5, 5).unwrap();
 
     assert!(manager.expire(9).is_empty());
     let expired = manager.expire(10);
