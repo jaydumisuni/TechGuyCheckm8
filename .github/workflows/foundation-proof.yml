@@ -28,7 +28,7 @@ jobs:
           cargo fmt --all
           git diff --exit-code > rustfmt.patch
       - name: Upload rustfmt patch
-        if: steps.formatting.outcome == 'failure'
+        if: always() && steps.formatting.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: rustfmt-patch
@@ -40,7 +40,7 @@ jobs:
           set -o pipefail
           cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
       - name: Upload Clippy diagnostics
-        if: steps.clippy.outcome == 'failure'
+        if: always() && steps.clippy.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: clippy-diagnostics

@@ -1,0 +1,16 @@
+[package]
+name = "tg-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+thiserror.workspace = true
+tg-protocol = { path = "../tg-protocol" }
+
+[dev-dependencies]
+tg-journal = { path = "../tg-journal" }
+uuid.workspace = true

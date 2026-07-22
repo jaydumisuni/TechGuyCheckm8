@@ -1,0 +1,19 @@
+[package]
+name = "tg-process"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "tg-sim-worker"
+path = "src/bin/tg-sim-worker.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true
