@@ -6,7 +6,9 @@ use tg_apple_observe::{
 };
 use tg_contracts::DeviceMode;
 
-const PWND_SERIAL: &str = "CPID:8020 CPRV:11 CPFM:03 SCEP:01 BDID:0E ECID:001A64912284002E IBFL:3C SRTG:[iBoot-3865.0.0.4.7] PWND:[usbliter8]";
+const SYNTHETIC_ECID: &str = "DEADBEEF00000001";
+const OTHER_SYNTHETIC_ECID: &str = "DEADBEEF00000002";
+const PWND_SERIAL: &str = "CPID:8020 CPRV:11 CPFM:03 SCEP:01 BDID:0E ECID:DEADBEEF00000001 IBFL:3C SRTG:[iBoot-SYNTHETIC] PWND:[usbliter8]";
 
 fn catalog() -> ObservationCatalog {
     ObservationCatalog {
@@ -53,7 +55,7 @@ fn usbliter8_marker_promotes_dfu_observation_to_pwned_dfu() {
     assert_eq!(observed.cpid.as_deref(), Some("8020"));
     assert_eq!(observed.pwn_provider.as_deref(), Some("usbliter8"));
     assert!(observed.evidence_complete);
-    assert_ne!(observed.ecid_hash.as_deref(), Some("001A64912284002E"));
+    assert_ne!(observed.ecid_hash.as_deref(), Some(SYNTHETIC_ECID));
     assert_ne!(observed.serial_hash.as_deref(), Some(PWND_SERIAL));
 }
 
@@ -73,7 +75,7 @@ fn same_device_can_reconnect_from_pwned_dfu_to_purple() {
 fn different_ecid_is_blocked_even_with_same_pwn_marker() {
     let initial = observe(&catalog(), &dfu(PWND_SERIAL)).unwrap();
     let locked = lock_identity(&initial).unwrap();
-    let other_serial = PWND_SERIAL.replace("001A64912284002E", "001A649122840099");
+    let other_serial = PWND_SERIAL.replace(SYNTHETIC_ECID, OTHER_SYNTHETIC_ECID);
     let reconnect = observe(&catalog(), &purple(&other_serial)).unwrap();
     let allowed = BTreeSet::from([DeviceMode::PurpleDiagnostic]);
 
@@ -116,7 +118,7 @@ fn unknown_usb_device_is_observed_without_claiming_apple_mode() {
     let raw = RawUsbObservation {
         vendor_id: 0xffff,
         product_id: 0xffff,
-        serial: Some("unknown".to_owned()),
+        serial: Some("synthetic-unknown".to_owned()),
         product_type: None,
         board_config: None,
         source: ObservationSource::RecordedFixture,
