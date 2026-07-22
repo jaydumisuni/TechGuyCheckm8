@@ -8,7 +8,7 @@ use tg_apple_probe::{
     inspect_installation, parse_irecovery_query, run_probe, sha256_file, ProbeError,
     ProbeInstallation, ProbeProfile, ReadOnlyProbeManifest, PROBE_CONTRACT_VERSION,
 };
-use tg_contracts::{DeviceMode, Maturity};
+use tg_contracts::{DeviceMode, Maturity, Permission};
 use tg_process::ProcessPolicy;
 use uuid::Uuid;
 
@@ -40,6 +40,10 @@ fn source_for_host() -> ObservationSource {
     }
 }
 
+fn grants() -> BTreeSet<Permission> {
+    ProbeProfile::IRecoveryDfuQuery.required_permissions()
+}
+
 fn manifest(hash: String, maturity: Maturity, licence: Option<&str>) -> ReadOnlyProbeManifest {
     ReadOnlyProbeManifest {
         schema_version: PROBE_CONTRACT_VERSION.to_owned(),
@@ -52,6 +56,7 @@ fn manifest(hash: String, maturity: Maturity, licence: Option<&str>) -> ReadOnly
         source_commit: "04d04f7cbaa4696504e91c1478ddd56160ed6776".to_owned(),
         declared_licence: licence.map(str::to_owned),
         expected_executable_sha256: hash,
+        requested_permissions: grants(),
         proof_requirements: BTreeSet::from([
             "redacted_identity_observed".to_owned(),
             "process_cleanup_verified".to_owned(),
@@ -125,12 +130,13 @@ fn parser_rejects_invalid_hex_identity() {
 fn supervised_fixture_runs_only_the_fixed_query_profile() {
     let work = TestDirectory::new();
     let hash = sha256_file(fixture_binary()).unwrap();
-    let manifest = manifest(hash, Maturity::SimulationTested, Some("LGPL-2.1-or-later"));
+    let manifest = manifest(hash, Maturity::SimulationTested, Some("LGPL-2.1-only"));
 
     let evidence = run_probe(
         &process_policy(&work),
         &manifest,
         &installation(&work),
+        &grants(),
         std::env::consts::OS,
         "development",
     )
@@ -139,6 +145,7 @@ fn supervised_fixture_runs_only_the_fixed_query_profile() {
     assert_eq!(evidence.status_code, Some(0));
     assert!(evidence.cleanup_verified);
     assert!(!evidence.stdout_truncated);
+    assert_eq!(evidence.granted_permissions, grants());
     assert_eq!(evidence.observed.mode, DeviceMode::PwnedDfu);
     assert_eq!(evidence.observed.cpid.as_deref(), Some("8020"));
     assert_eq!(
@@ -151,12 +158,56 @@ fn supervised_fixture_runs_only_the_fixed_query_profile() {
 }
 
 #[test]
+fn missing_usb_read_permission_blocks_before_execution() {
+    let work = TestDirectory::new();
+    let hash = sha256_file(fixture_binary()).unwrap();
+    let manifest = manifest(hash, Maturity::SimulationTested, Some("LGPL-2.1-only"));
+    let incomplete_grants = BTreeSet::from([
+        Permission::DeviceObserve,
+        Permission::ProcessSpawn,
+    ]);
+
+    assert!(matches!(
+        run_probe(
+            &process_policy(&work),
+            &manifest,
+            &installation(&work),
+            &incomplete_grants,
+            std::env::consts::OS,
+            "development"
+        ),
+        Err(ProbeError::MissingPermissions(missing))
+            if missing == vec![Permission::UsbRead]
+    ));
+}
+
+#[test]
+fn manifest_cannot_expand_the_fixed_permission_contract() {
+    let hash = sha256_file(fixture_binary()).unwrap();
+    let mut manifest = manifest(hash, Maturity::SimulationTested, Some("LGPL-2.1-only"));
+    manifest.requested_permissions.insert(Permission::UsbWrite);
+
+    let work = TestDirectory::new();
+    let report = inspect_installation(
+        &manifest,
+        &installation(&work),
+        std::env::consts::OS,
+        "development",
+    );
+    assert!(!report.ready);
+    assert!(report
+        .findings
+        .iter()
+        .any(|finding| finding.contains("permissions")));
+}
+
+#[test]
 fn executable_hash_mismatch_blocks_before_probe_execution() {
     let work = TestDirectory::new();
     let manifest = manifest(
         "00".repeat(32),
         Maturity::SimulationTested,
-        Some("LGPL-2.1-or-later"),
+        Some("LGPL-2.1-only"),
     );
 
     assert!(matches!(
@@ -164,6 +215,7 @@ fn executable_hash_mismatch_blocks_before_probe_execution() {
             &process_policy(&work),
             &manifest,
             &installation(&work),
+            &grants(),
             std::env::consts::OS,
             "development"
         ),
@@ -175,7 +227,7 @@ fn executable_hash_mismatch_blocks_before_probe_execution() {
 fn doctor_reports_verified_fixture_ready() {
     let work = TestDirectory::new();
     let hash = sha256_file(fixture_binary()).unwrap();
-    let manifest = manifest(hash, Maturity::SimulationTested, Some("LGPL-2.1-or-later"));
+    let manifest = manifest(hash, Maturity::SimulationTested, Some("LGPL-2.1-only"));
 
     let report = inspect_installation(
         &manifest,
