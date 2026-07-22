@@ -69,6 +69,7 @@ pub struct PurpleBootRouteManifest {
 #[serde(rename_all = "snake_case")]
 pub enum PurpleBootStep {
     VerifyPwnedDfu,
+    VerifyEnvironmentBackup,
     VerifyRawIbss,
     SendRawIbss,
     SendCustomBoot,
@@ -86,12 +87,22 @@ pub enum PurpleBootStep {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BootEnvironmentBackupReceipt {
+    pub session_id: Uuid,
+    pub route_id: String,
+    pub device_identity_hash: String,
+    pub snapshot_sha256: String,
+    pub rollback_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PurpleBootRequest {
     pub session_id: Uuid,
     pub route_id: String,
     pub locked_identity: LockedDeviceIdentity,
     pub pwn_proof: PwnDfuFinalProof,
     pub pwn_observation: ObservedAppleDevice,
+    pub environment_backup: BootEnvironmentBackupReceipt,
     pub authorized_device_service: bool,
     pub explicit_operator_authorization: bool,
     pub granted_permissions: BTreeSet<Permission>,
@@ -114,6 +125,8 @@ pub struct PurpleBootPlan {
     pub cpid: String,
     pub pwn_provider: String,
     pub artifacts: Vec<PinnedBootArtifact>,
+    pub environment_backup_sha256: String,
+    pub cleanup_required: bool,
     pub steps: Vec<PurpleBootStep>,
     pub granted_permissions: BTreeSet<Permission>,
     pub required_proofs: BTreeSet<String>,
@@ -149,6 +162,8 @@ pub struct PurpleBootFinalProof {
     pub route_id: String,
     pub verified: bool,
     pub final_mode: DeviceMode,
+    pub cleanup_required: bool,
+    pub environment_backup_sha256: String,
     pub failures: Vec<String>,
 }
 
@@ -215,12 +230,14 @@ pub fn validate_route_manifest(
 
     let mandatory_proofs = [
         "pwned_dfu_same_device",
+        "boot_environment_backup_verified",
         "raw_ibss_hash_verified",
         "custom_boot_acknowledged",
         "recovery_same_device",
         "diag_image_hash_verified",
         "fixed_boot_commands_acknowledged",
         "purple_mode_same_device",
+        "post_service_environment_rollback_required",
     ];
     if mandatory_proofs
         .iter()
@@ -259,6 +276,12 @@ pub fn build_purple_boot_plan(
     if !request.pwn_proof.verified {
         return Err(PurpleBootError::UnverifiedPwnProof);
     }
+    if request.pwn_proof.host_mode != DeviceMode::PwnedDfu
+        || request.pwn_proof.host_pwn_provider.as_deref() != Some("usbliter8")
+        || !request.pwn_proof.failures.is_empty()
+    {
+        return Err(PurpleBootError::InconsistentPwnProof);
+    }
     if request.pwn_proof.expected_cpid != manifest.cpid
         || request.locked_identity.cpid != manifest.cpid
     {
@@ -286,6 +309,7 @@ pub fn build_purple_boot_plan(
     if !request.authorized_device_service || !request.explicit_operator_authorization {
         return Err(PurpleBootError::AuthorizationRequired);
     }
+    validate_environment_backup(request)?;
 
     let required = required_permissions();
     if request.granted_permissions != required {
@@ -299,6 +323,7 @@ pub fn build_purple_boot_plan(
     let diag_image = pin_artifact(&manifest.diag_image)?;
     let mut steps = vec![
         PurpleBootStep::VerifyPwnedDfu,
+        PurpleBootStep::VerifyEnvironmentBackup,
         PurpleBootStep::VerifyRawIbss,
         PurpleBootStep::SendRawIbss,
         PurpleBootStep::SendCustomBoot,
@@ -332,6 +357,8 @@ pub fn build_purple_boot_plan(
         cpid: manifest.cpid.clone(),
         pwn_provider: manifest.pwn_provider.clone(),
         artifacts: vec![raw_ibss, diag_image],
+        environment_backup_sha256: request.environment_backup.snapshot_sha256.clone(),
+        cleanup_required: true,
         steps,
         granted_permissions: required,
         required_proofs: manifest.proof_requirements.clone(),
@@ -368,14 +395,18 @@ pub fn finalize_purple_boot(
         failures.push("one or more Purple steps lack acknowledgment".to_owned());
     }
 
-    let expected_kinds: BTreeSet<BootArtifactKind> =
-        plan.artifacts.iter().map(|artifact| artifact.kind.clone()).collect();
+    let expected_kinds: BTreeSet<BootArtifactKind> = plan
+        .artifacts
+        .iter()
+        .map(|artifact| artifact.kind.clone())
+        .collect();
     let observed_kinds: BTreeSet<BootArtifactKind> = evidence
         .artifact_receipts
         .iter()
         .map(|receipt| receipt.kind.clone())
         .collect();
-    if expected_kinds != observed_kinds || evidence.artifact_receipts.len() != plan.artifacts.len() {
+    if expected_kinds != observed_kinds || evidence.artifact_receipts.len() != plan.artifacts.len()
+    {
         failures.push("artifact receipt set does not exactly match the plan".to_owned());
     }
     for artifact in &plan.artifacts {
@@ -418,8 +449,25 @@ pub fn finalize_purple_boot(
         route_id: plan.route_id.clone(),
         verified: failures.is_empty(),
         final_mode: evidence.purple_observation.mode.clone(),
+        cleanup_required: plan.cleanup_required,
+        environment_backup_sha256: plan.environment_backup_sha256.clone(),
         failures,
     }
+}
+
+fn validate_environment_backup(request: &PurpleBootRequest) -> Result<(), PurpleBootError> {
+    let backup = &request.environment_backup;
+    if backup.session_id != request.session_id || backup.route_id != request.route_id {
+        return Err(PurpleBootError::EnvironmentBackupScopeMismatch);
+    }
+    if backup.device_identity_hash != request.locked_identity.identity_hash {
+        return Err(PurpleBootError::EnvironmentBackupDeviceMismatch);
+    }
+    validate_sha256(&backup.snapshot_sha256)?;
+    if !backup.rollback_ready {
+        return Err(PurpleBootError::EnvironmentRollbackNotReady);
+    }
+    Ok(())
 }
 
 fn validate_artifact_descriptor(
@@ -479,8 +527,8 @@ fn normalize_cpid(value: &str) -> Result<String, PurpleBootError> {
         .strip_prefix("0x")
         .or_else(|| trimmed.strip_prefix("0X"))
         .unwrap_or(trimmed);
-    let parsed = u16::from_str_radix(raw, 16)
-        .map_err(|_| PurpleBootError::InvalidCpid(value.to_owned()))?;
+    let parsed =
+        u16::from_str_radix(raw, 16).map_err(|_| PurpleBootError::InvalidCpid(value.to_owned()))?;
     Ok(format!("{parsed:04X}"))
 }
 
@@ -538,6 +586,8 @@ pub enum PurpleBootError {
     PwnProofSessionMismatch,
     #[error("pwned-DFU proof is not verified")]
     UnverifiedPwnProof,
+    #[error("pwned-DFU proof is internally inconsistent")]
+    InconsistentPwnProof,
     #[error("route CPID does not match the pwn proof or locked device")]
     RouteCpidMismatch,
     #[error("route product type does not match the locked device")]
@@ -550,6 +600,12 @@ pub enum PurpleBootError {
     PwnIdentityMismatch(Vec<String>),
     #[error("authorized device service and explicit operator authorization are required")]
     AuthorizationRequired,
+    #[error("boot-environment backup belongs to another session or route")]
+    EnvironmentBackupScopeMismatch,
+    #[error("boot-environment backup belongs to another device")]
+    EnvironmentBackupDeviceMismatch,
+    #[error("boot-environment rollback is not ready")]
+    EnvironmentRollbackNotReady,
     #[error("Purple stage permissions must exactly match the fixed grant")]
     PermissionGrantMismatch,
     #[error("power-button hold duration must be greater than zero")]

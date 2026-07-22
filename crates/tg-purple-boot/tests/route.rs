@@ -7,8 +7,8 @@ use tg_contracts::{DeviceMode, Maturity};
 use tg_purple_boot::{
     build_purple_boot_plan, finalize_purple_boot, required_permissions, validate_route_manifest,
     ArtifactTransferReceipt, AssetAcquisition, BootArtifactDescriptor, BootArtifactKind,
-    PurpleBootError, PurpleBootRequest, PurpleBootRouteManifest, PurpleBootRunEvidence,
-    PurpleStepReceipt, PurpleTransport, PURPLE_BOOT_VERSION,
+    BootEnvironmentBackupReceipt, PurpleBootError, PurpleBootRequest, PurpleBootRouteManifest,
+    PurpleBootRunEvidence, PurpleStepReceipt, PurpleTransport, PURPLE_BOOT_VERSION,
 };
 use tg_usbliter8::PwnDfuFinalProof;
 use uuid::Uuid;
@@ -97,26 +97,24 @@ fn route(pinned: bool) -> PurpleBootRouteManifest {
         diag_image: artifact(BootArtifactKind::DiagImg4, "22", 8_429_529),
         requires_power_button_hold_seconds: Some(2),
         recovery_settle_millis: 2_000,
-        transports: BTreeSet::from([
-            PurpleTransport::UsbSerial,
-            PurpleTransport::DcsdSerial,
-        ]),
+        transports: BTreeSet::from([PurpleTransport::UsbSerial, PurpleTransport::DcsdSerial]),
         maturity: Maturity::SimulationTested,
         route_source_evidence: BTreeSet::from([
             "https://haiyuidesu.github.io/posts/diags/".to_owned(),
-            "https://www.gsmzone.com/experience-reports/boot-diag-apple-a2098-eft-pro"
-                .to_owned(),
+            "https://www.gsmzone.com/experience-reports/boot-diag-apple-a2098-eft-pro".to_owned(),
         ]),
         declared_route_licence: Some("route-metadata-test-only".to_owned()),
         requested_permissions: required_permissions(),
         proof_requirements: [
             "pwned_dfu_same_device",
+            "boot_environment_backup_verified",
             "raw_ibss_hash_verified",
             "custom_boot_acknowledged",
             "recovery_same_device",
             "diag_image_hash_verified",
             "fixed_boot_commands_acknowledged",
             "purple_mode_same_device",
+            "post_service_environment_rollback_required",
         ]
         .into_iter()
         .map(str::to_owned)
@@ -131,7 +129,7 @@ fn request(route: &PurpleBootRouteManifest) -> PurpleBootRequest {
     PurpleBootRequest {
         session_id,
         route_id: route.route_id.clone(),
-        locked_identity,
+        locked_identity: locked_identity.clone(),
         pwn_proof: PwnDfuFinalProof {
             session_id,
             verified: true,
@@ -144,6 +142,13 @@ fn request(route: &PurpleBootRouteManifest) -> PurpleBootRequest {
             failures: Vec::new(),
         },
         pwn_observation,
+        environment_backup: BootEnvironmentBackupReceipt {
+            session_id,
+            route_id: route.route_id.clone(),
+            device_identity_hash: locked_identity.identity_hash.clone(),
+            snapshot_sha256: "55".repeat(32),
+            rollback_ready: true,
+        },
         authorized_device_service: true,
         explicit_operator_authorization: true,
         granted_permissions: required_permissions(),
@@ -201,9 +206,17 @@ fn pinned_route_builds_only_the_fixed_command_sequence() {
 
     assert_eq!(plan.artifacts.len(), 2);
     assert_eq!(plan.granted_permissions, required_permissions());
-    assert!(plan.steps.contains(&tg_purple_boot::PurpleBootStep::SendCustomBoot));
-    assert!(plan.steps.contains(&tg_purple_boot::PurpleBootStep::SetUsbSerialBootArgs));
-    assert!(plan.steps.contains(&tg_purple_boot::PurpleBootStep::SaveEnvironment));
+    assert!(plan.cleanup_required);
+    assert_eq!(plan.environment_backup_sha256, "55".repeat(32));
+    assert!(plan
+        .steps
+        .contains(&tg_purple_boot::PurpleBootStep::SendCustomBoot));
+    assert!(plan
+        .steps
+        .contains(&tg_purple_boot::PurpleBootStep::SetUsbSerialBootArgs));
+    assert!(plan
+        .steps
+        .contains(&tg_purple_boot::PurpleBootStep::SaveEnvironment));
     assert!(plan.steps.contains(&tg_purple_boot::PurpleBootStep::Go));
 }
 
@@ -232,7 +245,9 @@ fn unverified_pwn_stage_cannot_enter_purple_plan() {
 fn broad_or_incomplete_permission_grants_are_rejected() {
     let route = route(true);
     let mut request = request(&route);
-    request.granted_permissions.remove(&tg_contracts::Permission::SerialRead);
+    request
+        .granted_permissions
+        .remove(&tg_contracts::Permission::SerialRead);
     assert_eq!(
         build_purple_boot_plan(&route, &request),
         Err(PurpleBootError::PermissionGrantMismatch)

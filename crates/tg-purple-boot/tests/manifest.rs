@@ -1,7 +1,7 @@
 use tg_contracts::Maturity;
 use tg_purple_boot::{
-    build_purple_boot_plan, required_permissions, validate_route_manifest, PurpleBootError,
-    PurpleBootRequest, PurpleBootRouteManifest,
+    build_purple_boot_plan, required_permissions, validate_route_manifest,
+    BootEnvironmentBackupReceipt, PurpleBootError, PurpleBootRequest, PurpleBootRouteManifest,
 };
 use tg_usbliter8::PwnDfuFinalProof;
 use uuid::Uuid;
@@ -58,6 +58,13 @@ fn research_route_tracks_public_evidence_without_claiming_asset_readiness() {
             failures: Vec::new(),
         },
         pwn_observation,
+        environment_backup: BootEnvironmentBackupReceipt {
+            session_id,
+            route_id: route.route_id.clone(),
+            device_identity_hash: "synthetic-identity-hash".to_owned(),
+            snapshot_sha256: "55".repeat(32),
+            rollback_ready: true,
+        },
         authorized_device_service: true,
         explicit_operator_authorization: true,
         granted_permissions: required_permissions(),

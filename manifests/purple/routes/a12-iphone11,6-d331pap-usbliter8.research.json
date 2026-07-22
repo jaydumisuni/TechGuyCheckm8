@@ -44,11 +44,13 @@
   ],
   "proof_requirements": [
     "pwned_dfu_same_device",
+    "boot_environment_backup_verified",
     "raw_ibss_hash_verified",
     "custom_boot_acknowledged",
     "recovery_same_device",
     "diag_image_hash_verified",
     "fixed_boot_commands_acknowledged",
-    "purple_mode_same_device"
+    "purple_mode_same_device",
+    "post_service_environment_rollback_required"
   ]
 }
