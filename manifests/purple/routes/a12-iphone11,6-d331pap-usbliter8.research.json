@@ -1,0 +1,54 @@
+{
+  "schema_version": "tgcheckm8.purple-boot.v1",
+  "route_id": "purple.a12.iphone11,6.d331pap.usbliter8",
+  "version": "0.1.0-research",
+  "product_type": "iPhone11,6",
+  "board_config": "d331pap",
+  "cpid": "8020",
+  "pwn_provider": "usbliter8",
+  "raw_ibss": {
+    "kind": "raw_ibss",
+    "sha256": null,
+    "size_bytes": null,
+    "acquisition": "user_supplied_local",
+    "redistribution_allowed": false,
+    "source_description": "User-supplied, device-exact raw iBSS. Not included or downloaded by TGCHECKM8."
+  },
+  "diag_image": {
+    "kind": "diag_img4",
+    "sha256": null,
+    "size_bytes": null,
+    "acquisition": "user_supplied_local",
+    "redistribution_allowed": false,
+    "source_description": "User-supplied, board-exact Apple Diags image. Not included or downloaded by TGCHECKM8."
+  },
+  "requires_power_button_hold_seconds": 2,
+  "recovery_settle_millis": 2000,
+  "transports": [
+    "usb_serial",
+    "dcsd_serial"
+  ],
+  "maturity": "discovered",
+  "route_source_evidence": [
+    "https://haiyuidesu.github.io/posts/diags/",
+    "https://www.gsmzone.com/experience-reports/boot-diag-apple-a2098-eft-pro"
+  ],
+  "declared_route_licence": null,
+  "requested_permissions": [
+    "device_observe",
+    "usb_read",
+    "usb_write",
+    "serial_read",
+    "filesystem_read",
+    "process_spawn"
+  ],
+  "proof_requirements": [
+    "pwned_dfu_same_device",
+    "raw_ibss_hash_verified",
+    "custom_boot_acknowledged",
+    "recovery_same_device",
+    "diag_image_hash_verified",
+    "fixed_boot_commands_acknowledged",
+    "purple_mode_same_device"
+  ]
+}
