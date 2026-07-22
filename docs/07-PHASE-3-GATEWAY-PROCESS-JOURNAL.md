@@ -98,3 +98,15 @@ Phase 4 adds a read-only Apple observation layer behind the same contracts:
 - no USB writes.
 
 A device-changing engine remains blocked until read-only observation and reconnect evidence pass adversarial testing.
+
+## Locked handoff to Purple/Diags work
+
+Purple Mode is not added to this phase. After Phase 4 observation passes, the next reviewed service phase will introduce only:
+
+- typed Purple/Diags bootchain-provider contracts;
+- generation-specific provider selection for A5/A5X, A6–A11 and A12/A13;
+- SysCfg read, parse, validate and backup models;
+- simulated transport, disconnect, checksum and rollback fixtures;
+- write-policy gates requiring same-device identity, full backup, field diff, explicit authorization and read-back proof.
+
+Real SysCfg writes, identity-field changes, NAND writes and unverified cross-board restores remain blocked until their own hardware-tested release gate passes.
