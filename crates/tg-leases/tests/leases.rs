@@ -7,18 +7,18 @@ fn set<T: Ord>(values: impl IntoIterator<Item = T>) -> BTreeSet<T> {
     values.into_iter().collect()
 }
 
-fn resource(kind: ResourceKind, id: &str) -> ResourceKey {
-    ResourceKey {
-        kind,
-        stable_id: id.to_owned(),
-    }
-}
-
 fn owner(worker: &str) -> LeaseOwner {
     LeaseOwner {
         session_id: Uuid::new_v4(),
         worker_id: worker.to_owned(),
         run_id: Uuid::new_v4(),
+    }
+}
+
+fn resource(kind: ResourceKind, id: &str) -> ResourceKey {
+    ResourceKey {
+        kind,
+        stable_id: id.to_owned(),
     }
 }
 
@@ -50,9 +50,14 @@ fn same_lease_owns_all_requested_resources() {
     let mut manager = LeaseManager::default();
     let usb = resource(ResourceKind::Usb, "port-1");
     let device = resource(ResourceKind::Device, "device-1");
-    let owner = owner("worker-a");
+    let primary_owner = owner("worker-a");
     let grant = manager
-        .acquire(set([usb.clone(), device.clone()]), owner, 4, 6)
+        .acquire(
+            set([usb.clone(), device.clone()]),
+            primary_owner,
+            4,
+            6,
+        )
         .unwrap();
 
     assert_eq!(manager.active_for(&usb).unwrap().lease_id, grant.lease_id);
@@ -67,9 +72,9 @@ fn same_lease_owns_all_requested_resources() {
 fn wrong_owner_cannot_release_lease() {
     let mut manager = LeaseManager::default();
     let usb = resource(ResourceKind::Usb, "port-1");
-    let owner = owner("worker-a");
+    let primary_owner = owner("worker-a");
     let grant = manager
-        .acquire(set([usb.clone()]), owner.clone(), 0, 10)
+        .acquire(set([usb.clone()]), primary_owner.clone(), 0, 10)
         .unwrap();
 
     assert_eq!(
@@ -77,7 +82,7 @@ fn wrong_owner_cannot_release_lease() {
         Err(LeaseError::OwnerMismatch)
     );
     assert!(manager.active_for(&usb).is_some());
-    manager.release(grant.lease_id, &owner).unwrap();
+    manager.release(grant.lease_id, &primary_owner).unwrap();
     assert!(manager.active_for(&usb).is_none());
 }
 
@@ -88,7 +93,9 @@ fn expired_lease_releases_every_resource() {
         resource(ResourceKind::Usb, "port-1"),
         resource(ResourceKind::Device, "device-1"),
     ]);
-    let grant = manager.acquire(resources, owner("worker-a"), 5, 5).unwrap();
+    let grant = manager
+        .acquire(resources, owner("worker-a"), 5, 5)
+        .unwrap();
 
     assert!(manager.expire(9).is_empty());
     let expired = manager.expire(10);
@@ -99,11 +106,11 @@ fn expired_lease_releases_every_resource() {
 #[test]
 fn lease_renewal_requires_same_owner() {
     let mut manager = LeaseManager::default();
-    let owner = owner("worker-a");
+    let primary_owner = owner("worker-a");
     let grant = manager
         .acquire(
             set([resource(ResourceKind::Session, "session-1")]),
-            owner.clone(),
+            primary_owner.clone(),
             1,
             4,
         )
@@ -113,6 +120,8 @@ fn lease_renewal_requires_same_owner() {
         manager.renew(grant.lease_id, &owner("worker-b"), 3, 10),
         Err(LeaseError::OwnerMismatch)
     );
-    let renewed = manager.renew(grant.lease_id, &owner, 3, 10).unwrap();
+    let renewed = manager
+        .renew(grant.lease_id, &primary_owner, 3, 10)
+        .unwrap();
     assert_eq!(renewed.expires_at_tick, 13);
 }
