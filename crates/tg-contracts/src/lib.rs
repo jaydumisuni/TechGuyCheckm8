@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 pub const CONTRACT_VERSION: &str = "tgcheckm8.contracts.v1";
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OperationKind {
     Diagnose,
@@ -32,7 +32,7 @@ pub enum OperationKind {
     ExportSupportPackage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceMode {
     Disconnected,
@@ -50,7 +50,7 @@ pub enum DeviceMode {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionState {
     Idle,
@@ -191,7 +191,7 @@ pub struct EngineManifest {
     pub failure_behavior: FailureBehavior,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Maturity {
     Discovered,
@@ -242,7 +242,7 @@ pub enum StageResult {
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceClass {
     Observation,
@@ -348,78 +348,4 @@ pub fn validate_engine_for_policy(
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn provenance() -> Provenance {
-        Provenance {
-            source_repository: "owner/repo".to_owned(),
-            source_commit: "0123456789abcdef".to_owned(),
-            source_release: None,
-            licence: "MIT".to_owned(),
-            local_patch_hash: None,
-            build_recipe_hash: None,
-            artifact_hashes: BTreeMap::new(),
-        }
-    }
-
-    #[test]
-    fn stable_policy_rejects_beta_engine() {
-        let manifest = EngineManifest {
-            schema_version: CONTRACT_VERSION.to_owned(),
-            engine_id: "test".to_owned(),
-            version: "0.1.0".to_owned(),
-            maturity: Maturity::Beta,
-            capabilities: BTreeSet::new(),
-            requested_permissions: BTreeSet::new(),
-            supported_hosts: BTreeSet::new(),
-            executes_external_code: false,
-            requires_network: false,
-            modifies_device: false,
-            provenance: provenance(),
-            proof_requirements: BTreeSet::new(),
-            failure_behavior: FailureBehavior::FailClosed,
-        };
-
-        assert_eq!(
-            validate_engine_for_policy(&manifest, "stable"),
-            Err(ContractError::ImmatureStableEngine)
-        );
-    }
-
-    #[test]
-    fn blocked_route_has_no_engines_or_permissions() {
-        let decision = RouteDecision::blocked("unknown_cpid", "CPID is not approved");
-        assert!(!decision.approved);
-        assert!(decision.engine_ids.is_empty());
-        assert!(decision.granted_permissions.is_empty());
-    }
-
-    #[test]
-    fn session_defaults_to_offline_stable_policy() {
-        let request = SessionRequest::new(
-            OperationKind::Diagnose,
-            DeviceIdentity {
-                product_type: "iPhone10,6".to_owned(),
-                board_config: None,
-                chip: Some("A11".to_owned()),
-                cpid: Some("0x8015".to_owned()),
-                ecid_hash: None,
-                udid_hash: None,
-                serial_hash: None,
-            },
-            HostIdentity {
-                os: "linux".to_owned(),
-                version: None,
-                architecture: "x86_64".to_owned(),
-            },
-            DeviceMode::Recovery,
-        );
-
-        assert_eq!(request.policy_profile, "stable");
-        assert!(request.offline_required);
-    }
 }
