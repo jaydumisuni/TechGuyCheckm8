@@ -1,0 +1,86 @@
+name: One-shot Purple Rollback Tests
+
+on:
+  push:
+    branches:
+      - service/purple-boot-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: purple-rollback-tests-once
+  cancel-in-progress: false
+
+jobs:
+  add-tests-and-remove-self:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: service/purple-boot-v1
+          fetch-depth: 0
+      - name: Add rollback and pwn-consistency tests
+        run: |
+          cat >> crates/tg-purple-boot/tests/route.rs <<'RS'
+
+#[test]
+fn environment_backup_must_match_device_and_be_rollback_ready() {
+    let route = route(true);
+    let mut request = request(&route);
+    request.environment_backup.device_identity_hash = "another-device".to_owned();
+    assert_eq!(
+        build_purple_boot_plan(&route, &request),
+        Err(PurpleBootError::EnvironmentBackupDeviceMismatch)
+    );
+
+    let mut request = request(&route);
+    request.environment_backup.rollback_ready = false;
+    assert_eq!(
+        build_purple_boot_plan(&route, &request),
+        Err(PurpleBootError::EnvironmentRollbackNotReady)
+    );
+
+    let mut request = request(&route);
+    request.environment_backup.session_id = Uuid::new_v4();
+    assert_eq!(
+        build_purple_boot_plan(&route, &request),
+        Err(PurpleBootError::EnvironmentBackupScopeMismatch)
+    );
+}
+
+#[test]
+fn internally_inconsistent_pwn_proof_is_rejected() {
+    let route = route(true);
+    let mut request = request(&route);
+    request.pwn_proof.host_pwn_provider = Some("other-provider".to_owned());
+    assert_eq!(
+        build_purple_boot_plan(&route, &request),
+        Err(PurpleBootError::InconsistentPwnProof)
+    );
+}
+
+#[test]
+fn verified_purple_checkpoint_keeps_cleanup_obligation() {
+    let route = route(true);
+    let request = request(&route);
+    let plan = build_purple_boot_plan(&route, &request).unwrap();
+    let evidence = successful_evidence(&plan, ECID_A);
+    let proof = finalize_purple_boot(&plan, &request.locked_identity, &evidence);
+
+    assert!(proof.verified);
+    assert!(proof.cleanup_required);
+    assert_eq!(
+        proof.environment_backup_sha256,
+        request.environment_backup.snapshot_sha256
+    );
+}
+RS
+          cargo fmt --all
+          rm .github/workflows/add-purple-env-tests-once.yml
+          git config user.name "TGCHECKM8 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "test: prove Purple environment rollback gates"
+          git push origin HEAD:service/purple-boot-v1
