@@ -5,6 +5,7 @@ members = [
     "crates/tg-policy",
     "crates/tg-router",
     "crates/tg-evidence",
+    "crates/tg-controller",
 ]
 resolver = "2"
 
