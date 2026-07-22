@@ -96,10 +96,7 @@ pub fn observe(
 
     if matching.len() > 1 {
         return Err(ObservationError::AmbiguousModeRules(
-            matching
-                .iter()
-                .map(|rule| rule.rule_id.clone())
-                .collect(),
+            matching.iter().map(|rule| rule.rule_id.clone()).collect(),
         ));
     }
 
