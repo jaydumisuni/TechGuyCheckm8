@@ -1,0 +1,167 @@
+name: One-shot Purple Environment Rollback Patch
+
+on:
+  push:
+    branches:
+      - service/purple-boot-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: purple-env-patch-once
+  cancel-in-progress: false
+
+jobs:
+  patch-and-remove-self:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: service/purple-boot-v1
+          fetch-depth: 0
+      - name: Require boot-environment backup and cleanup obligation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          lib = Path("crates/tg-purple-boot/src/lib.rs")
+          text = lib.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  "pub enum PurpleBootStep {\n    VerifyPwnedDfu,",
+                  "pub enum PurpleBootStep {\n    VerifyPwnedDfu,\n    VerifyEnvironmentBackup,",
+              ),
+              (
+                  "#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]\npub struct PurpleBootRequest {",
+                  "#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]\npub struct BootEnvironmentBackupReceipt {\n    pub session_id: Uuid,\n    pub route_id: String,\n    pub device_identity_hash: String,\n    pub snapshot_sha256: String,\n    pub rollback_ready: bool,\n}\n\n#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]\npub struct PurpleBootRequest {",
+              ),
+              (
+                  "    pub pwn_observation: ObservedAppleDevice,\n    pub authorized_device_service: bool,",
+                  "    pub pwn_observation: ObservedAppleDevice,\n    pub environment_backup: BootEnvironmentBackupReceipt,\n    pub authorized_device_service: bool,",
+              ),
+              (
+                  "    pub artifacts: Vec<PinnedBootArtifact>,\n    pub steps: Vec<PurpleBootStep>,",
+                  "    pub artifacts: Vec<PinnedBootArtifact>,\n    pub environment_backup_sha256: String,\n    pub cleanup_required: bool,\n    pub steps: Vec<PurpleBootStep>,",
+              ),
+              (
+                  "    pub verified: bool,\n    pub final_mode: DeviceMode,",
+                  "    pub verified: bool,\n    pub final_mode: DeviceMode,\n    pub cleanup_required: bool,\n    pub environment_backup_sha256: String,",
+              ),
+              (
+                  "        \"pwned_dfu_same_device\",\n        \"raw_ibss_hash_verified\",",
+                  "        \"pwned_dfu_same_device\",\n        \"boot_environment_backup_verified\",\n        \"raw_ibss_hash_verified\",",
+              ),
+              (
+                  "        \"fixed_boot_commands_acknowledged\",\n        \"purple_mode_same_device\",",
+                  "        \"fixed_boot_commands_acknowledged\",\n        \"purple_mode_same_device\",\n        \"post_service_environment_rollback_required\",",
+              ),
+              (
+                  "    if !request.pwn_proof.verified {\n        return Err(PurpleBootError::UnverifiedPwnProof);\n    }",
+                  "    if !request.pwn_proof.verified {\n        return Err(PurpleBootError::UnverifiedPwnProof);\n    }\n    if request.pwn_proof.host_mode != DeviceMode::PwnedDfu\n        || request.pwn_proof.host_pwn_provider.as_deref() != Some(\"usbliter8\")\n        || !request.pwn_proof.failures.is_empty()\n    {\n        return Err(PurpleBootError::InconsistentPwnProof);\n    }",
+              ),
+              (
+                  "    if !request.authorized_device_service || !request.explicit_operator_authorization {\n        return Err(PurpleBootError::AuthorizationRequired);\n    }",
+                  "    if !request.authorized_device_service || !request.explicit_operator_authorization {\n        return Err(PurpleBootError::AuthorizationRequired);\n    }\n    validate_environment_backup(request)?;",
+              ),
+              (
+                  "    let mut steps = vec![\n        PurpleBootStep::VerifyPwnedDfu,",
+                  "    let mut steps = vec![\n        PurpleBootStep::VerifyPwnedDfu,\n        PurpleBootStep::VerifyEnvironmentBackup,",
+              ),
+              (
+                  "        artifacts: vec![raw_ibss, diag_image],\n        steps,",
+                  "        artifacts: vec![raw_ibss, diag_image],\n        environment_backup_sha256: request.environment_backup.snapshot_sha256.clone(),\n        cleanup_required: true,\n        steps,",
+              ),
+              (
+                  "        verified: failures.is_empty(),\n        final_mode: evidence.purple_observation.mode.clone(),\n        failures,",
+                  "        verified: failures.is_empty(),\n        final_mode: evidence.purple_observation.mode.clone(),\n        cleanup_required: plan.cleanup_required,\n        environment_backup_sha256: plan.environment_backup_sha256.clone(),\n        failures,",
+              ),
+              (
+                  "fn validate_artifact_descriptor(\n",
+                  "fn validate_environment_backup(request: &PurpleBootRequest) -> Result<(), PurpleBootError> {\n    let backup = &request.environment_backup;\n    if backup.session_id != request.session_id || backup.route_id != request.route_id {\n        return Err(PurpleBootError::EnvironmentBackupScopeMismatch);\n    }\n    if backup.device_identity_hash != request.locked_identity.identity_hash {\n        return Err(PurpleBootError::EnvironmentBackupDeviceMismatch);\n    }\n    validate_sha256(&backup.snapshot_sha256)?;\n    if !backup.rollback_ready {\n        return Err(PurpleBootError::EnvironmentRollbackNotReady);\n    }\n    Ok(())\n}\n\nfn validate_artifact_descriptor(\n",
+              ),
+              (
+                  "    #[error(\"pwned-DFU proof is not verified\")]\n    UnverifiedPwnProof,",
+                  "    #[error(\"pwned-DFU proof is not verified\")]\n    UnverifiedPwnProof,\n    #[error(\"pwned-DFU proof is internally inconsistent\")]\n    InconsistentPwnProof,",
+              ),
+              (
+                  "    #[error(\"authorized device service and explicit operator authorization are required\")]\n    AuthorizationRequired,",
+                  "    #[error(\"authorized device service and explicit operator authorization are required\")]\n    AuthorizationRequired,\n    #[error(\"boot-environment backup belongs to another session or route\")]\n    EnvironmentBackupScopeMismatch,\n    #[error(\"boot-environment backup belongs to another device\")]\n    EnvironmentBackupDeviceMismatch,\n    #[error(\"boot-environment rollback is not ready\")]\n    EnvironmentRollbackNotReady,",
+              ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f"missing lib target:\n{old}")
+              text = text.replace(old, new, 1)
+          lib.write_text(text, encoding="utf-8")
+
+          tests = Path("crates/tg-purple-boot/tests/route.rs")
+          text = tests.read_text(encoding="utf-8")
+          text = text.replace(
+              "ArtifactTransferReceipt, AssetAcquisition, BootArtifactDescriptor, BootArtifactKind,\n    PurpleBootError,",
+              "ArtifactTransferReceipt, AssetAcquisition, BootArtifactDescriptor, BootArtifactKind,\n    BootEnvironmentBackupReceipt, PurpleBootError,",
+              1,
+          )
+          text = text.replace(
+              "            \"pwned_dfu_same_device\",\n            \"raw_ibss_hash_verified\",",
+              "            \"pwned_dfu_same_device\",\n            \"boot_environment_backup_verified\",\n            \"raw_ibss_hash_verified\",",
+              1,
+          )
+          text = text.replace(
+              "            \"fixed_boot_commands_acknowledged\",\n            \"purple_mode_same_device\",",
+              "            \"fixed_boot_commands_acknowledged\",\n            \"purple_mode_same_device\",\n            \"post_service_environment_rollback_required\",",
+              1,
+          )
+          text = text.replace(
+              "        pwn_observation,\n        authorized_device_service: true,",
+              "        pwn_observation,\n        environment_backup: BootEnvironmentBackupReceipt {\n            session_id,\n            route_id: route.route_id.clone(),\n            device_identity_hash: locked_identity.identity_hash.clone(),\n            snapshot_sha256: \"55\".repeat(32),\n            rollback_ready: true,\n        },\n        authorized_device_service: true,",
+              1,
+          )
+          text = text.replace(
+              "        locked_identity,\n        pwn_proof:",
+              "        locked_identity: locked_identity.clone(),\n        pwn_proof:",
+              1,
+          )
+          text = text.replace(
+              "    assert_eq!(plan.granted_permissions, required_permissions());",
+              "    assert_eq!(plan.granted_permissions, required_permissions());\n    assert!(plan.cleanup_required);\n    assert_eq!(plan.environment_backup_sha256, \"55\".repeat(32));",
+              1,
+          )
+          tests.write_text(text, encoding="utf-8")
+
+          manifest_test = Path("crates/tg-purple-boot/tests/manifest.rs")
+          text = manifest_test.read_text(encoding="utf-8")
+          text = text.replace(
+              "build_purple_boot_plan, required_permissions, validate_route_manifest, PurpleBootError,\n    PurpleBootRequest,",
+              "build_purple_boot_plan, required_permissions, validate_route_manifest,\n    BootEnvironmentBackupReceipt, PurpleBootError, PurpleBootRequest,",
+              1,
+          )
+          text = text.replace(
+              "        pwn_observation,\n        authorized_device_service: true,",
+              "        pwn_observation,\n        environment_backup: BootEnvironmentBackupReceipt {\n            session_id,\n            route_id: route.route_id.clone(),\n            device_identity_hash: \"synthetic-identity-hash\".to_owned(),\n            snapshot_sha256: \"55\".repeat(32),\n            rollback_ready: true,\n        },\n        authorized_device_service: true,",
+              1,
+          )
+          manifest_test.write_text(text, encoding="utf-8")
+
+          manifest = Path("manifests/purple/routes/a12-iphone11,6-d331pap-usbliter8.research.json")
+          text = manifest.read_text(encoding="utf-8")
+          text = text.replace(
+              '    "pwned_dfu_same_device",\n    "raw_ibss_hash_verified",',
+              '    "pwned_dfu_same_device",\n    "boot_environment_backup_verified",\n    "raw_ibss_hash_verified",',
+              1,
+          )
+          text = text.replace(
+              '    "fixed_boot_commands_acknowledged",\n    "purple_mode_same_device"',
+              '    "fixed_boot_commands_acknowledged",\n    "purple_mode_same_device",\n    "post_service_environment_rollback_required"',
+              1,
+          )
+          manifest.write_text(text, encoding="utf-8")
+          PY
+          cargo fmt --all
+          rm .github/workflows/patch-purple-env-once.yml
+          git config user.name "TGCHECKM8 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "policy: require Purple boot environment rollback readiness"
+          git push origin HEAD:service/purple-boot-v1
