@@ -1,0 +1,20 @@
+[package]
+name = "tg-serial-doctor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+tg-contracts.workspace = true
+tg-leases = { path = "../tg-leases" }
+tg-purple-boot = { path = "../tg-purple-boot" }
+tg-syscfg-serial = { path = "../tg-syscfg-serial" }
+
+[dev-dependencies]
+serde_json.workspace = true
