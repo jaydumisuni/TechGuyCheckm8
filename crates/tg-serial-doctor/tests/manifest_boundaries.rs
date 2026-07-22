@@ -59,7 +59,9 @@ fn simulation_provider_cannot_claim_stable_policy() {
 #[test]
 fn permission_superset_is_not_an_exact_contract() {
     let mut invalid = manifest();
-    invalid.requested_permissions.insert(Permission::SerialWrite);
+    invalid
+        .requested_permissions
+        .insert(Permission::SerialWrite);
     assert_eq!(
         validate_manifest(&invalid, "development"),
         Err(SerialDoctorError::PermissionContractMismatch)
