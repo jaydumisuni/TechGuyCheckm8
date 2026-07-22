@@ -148,10 +148,7 @@ fn supervised_fixture_runs_only_the_fixed_query_profile() {
     assert_eq!(evidence.granted_permissions, grants());
     assert_eq!(evidence.observed.mode, DeviceMode::PwnedDfu);
     assert_eq!(evidence.observed.cpid.as_deref(), Some("8020"));
-    assert_eq!(
-        evidence.observed.pwn_provider.as_deref(),
-        Some("usbliter8")
-    );
+    assert_eq!(evidence.observed.pwn_provider.as_deref(), Some("usbliter8"));
     assert!(evidence.observed.evidence_complete);
     let serialized = serde_json::to_string(&evidence).unwrap();
     assert!(!serialized.contains("DEADBEEF00000001"));
@@ -162,10 +159,7 @@ fn missing_usb_read_permission_blocks_before_execution() {
     let work = TestDirectory::new();
     let hash = sha256_file(fixture_binary()).unwrap();
     let manifest = manifest(hash, Maturity::SimulationTested, Some("LGPL-2.1-only"));
-    let incomplete_grants = BTreeSet::from([
-        Permission::DeviceObserve,
-        Permission::ProcessSpawn,
-    ]);
+    let incomplete_grants = BTreeSet::from([Permission::DeviceObserve, Permission::ProcessSpawn]);
 
     assert!(matches!(
         run_probe(

@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tg_apple_observe::{
-    default_apple_dfu_rule, observe, ObservationCatalog, ObservationSource,
-    ObservedAppleDevice, RawUsbObservation,
+    default_apple_dfu_rule, observe, ObservationCatalog, ObservationSource, ObservedAppleDevice,
+    RawUsbObservation,
 };
 use tg_contracts::{DeviceMode, Maturity, Permission};
 use tg_process::{run_supervised, ProcessPolicy, ProcessSpec, TerminationReason};
@@ -54,7 +54,7 @@ pub struct ReadOnlyProbeManifest {
     pub source_repository: String,
     pub source_commit: String,
     pub declared_licence: Option<String>,
-    pub expected_executable_sha256: String,
+    pub expected_executable_sha256: Option<String>,
     pub requested_permissions: BTreeSet<Permission>,
     pub proof_requirements: BTreeSet<String>,
 }
@@ -117,12 +117,16 @@ pub fn validate_manifest(
         || manifest.version.trim().is_empty()
         || manifest.source_repository.trim().is_empty()
         || manifest.source_commit.trim().is_empty()
-        || manifest.expected_executable_sha256.trim().is_empty()
     {
         return Err(ProbeError::IncompleteManifest);
     }
     if !manifest.supported_hosts.contains(host) {
         return Err(ProbeError::UnsupportedHost(host.to_owned()));
+    }
+    if let Some(hash) = manifest.expected_executable_sha256.as_deref() {
+        if !is_sha256(hash) {
+            return Err(ProbeError::InvalidExecutableHash);
+        }
     }
     if manifest.requested_permissions != manifest.profile.required_permissions() {
         return Err(ProbeError::PermissionContractMismatch);
@@ -143,6 +147,9 @@ pub fn validate_manifest(
     if policy_profile == "stable" {
         if manifest.maturity != Maturity::Stable {
             return Err(ProbeError::ImmatureStableProbe);
+        }
+        if manifest.expected_executable_sha256.is_none() {
+            return Err(ProbeError::StableProbeUnpinned);
         }
         match manifest.declared_licence.as_deref() {
             Some(licence) if !licence.trim().is_empty() => {}
@@ -174,9 +181,12 @@ pub fn inspect_installation(
     if !supported_host {
         findings.push("host is not declared by the probe manifest".to_owned());
     }
-    let hash_match = if executable_present {
-        match sha256_file(&installation.executable) {
-            Ok(actual) if actual == manifest.expected_executable_sha256 => true,
+    let hash_match = match (
+        executable_present,
+        manifest.expected_executable_sha256.as_deref(),
+    ) {
+        (true, Some(expected)) => match sha256_file(&installation.executable) {
+            Ok(actual) if actual == expected => true,
             Ok(_) => {
                 findings.push("probe executable hash mismatch".to_owned());
                 false
@@ -185,9 +195,12 @@ pub fn inspect_installation(
                 findings.push(error.to_string());
                 false
             }
+        },
+        (true, None) => {
+            findings.push("probe executable is not pinned by SHA-256".to_owned());
+            false
         }
-    } else {
-        false
+        (false, _) => false,
     };
 
     ProbeDoctorReport {
@@ -219,8 +232,12 @@ pub fn run_probe(
         return Err(ProbeError::MissingPermissions(missing_permissions));
     }
 
+    let expected_executable_sha256 = manifest
+        .expected_executable_sha256
+        .as_deref()
+        .ok_or(ProbeError::UnpinnedExecutable)?;
     let executable_sha256 = sha256_file(&installation.executable)?;
-    if executable_sha256 != manifest.expected_executable_sha256 {
+    if executable_sha256 != expected_executable_sha256 {
         return Err(ProbeError::ExecutableHashMismatch);
     }
 
@@ -291,19 +308,9 @@ pub fn parse_irecovery_query(output: &str) -> Result<ParsedIRecoveryQuery, Probe
         }
     }
 
-    let cpid = normalize_cpid(
-        fields
-            .get("CPID")
-            .ok_or(ProbeError::MissingField("CPID"))?,
-    )?;
-    let ecid = normalize_ecid(
-        fields
-            .get("ECID")
-            .ok_or(ProbeError::MissingField("ECID"))?,
-    )?;
-    let mode_text = fields
-        .get("MODE")
-        .ok_or(ProbeError::MissingField("MODE"))?;
+    let cpid = normalize_cpid(fields.get("CPID").ok_or(ProbeError::MissingField("CPID"))?)?;
+    let ecid = normalize_ecid(fields.get("ECID").ok_or(ProbeError::MissingField("ECID"))?)?;
+    let mode_text = fields.get("MODE").ok_or(ProbeError::MissingField("MODE"))?;
     let mode = match mode_text.as_str() {
         "DFU" | "DFU via Debug USB (KIS)" => DeviceMode::Dfu,
         other => return Err(ProbeError::UnsupportedObservedMode(other.to_owned())),
@@ -379,6 +386,10 @@ fn strip_hex_prefix(value: &str) -> &str {
         .unwrap_or(value.trim())
 }
 
+fn is_sha256(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
 fn to_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = String::with_capacity(bytes.len() * 2);
@@ -393,8 +404,10 @@ fn to_hex(bytes: &[u8]) -> String {
 pub enum ProbeError {
     #[error("unsupported probe contract version: {0}")]
     UnsupportedVersion(String),
-    #[error("probe manifest identity or executable hash is incomplete")]
+    #[error("probe manifest identity is incomplete")]
     IncompleteManifest,
+    #[error("probe executable SHA-256 must contain exactly 64 hexadecimal characters")]
+    InvalidExecutableHash,
     #[error("probe does not declare support for host: {0}")]
     UnsupportedHost(String),
     #[error("probe manifest permissions do not match the fixed read-only profile")]
@@ -407,8 +420,12 @@ pub enum ProbeError {
     MissingMandatoryProof,
     #[error("stable policy requires a Stable probe")]
     ImmatureStableProbe,
+    #[error("stable policy requires a pinned probe executable")]
+    StableProbeUnpinned,
     #[error("stable policy requires a declared licence")]
     MissingDeclaredLicence,
+    #[error("probe executable is not pinned by the manifest")]
+    UnpinnedExecutable,
     #[error("probe executable hash does not match the manifest")]
     ExecutableHashMismatch,
     #[error("probe process failed: status={status_code:?}, timed_out={timed_out}, cleanup_verified={cleanup_verified}")]
