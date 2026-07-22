@@ -1,0 +1,25 @@
+{
+  "schema_version": "tgcheckm8.apple-probe.v1",
+  "probe_id": "apple.irecovery.dfu.query",
+  "version": "upstream-04d04f7c",
+  "profile": "i_recovery_dfu_query",
+  "supported_hosts": [
+    "windows",
+    "macos",
+    "linux"
+  ],
+  "maturity": "discovered",
+  "source_repository": "https://github.com/libimobiledevice/libirecovery",
+  "source_commit": "04d04f7cbaa4696504e91c1478ddd56160ed6776",
+  "declared_licence": "LGPL-2.1-only",
+  "expected_executable_sha256": null,
+  "requested_permissions": [
+    "device_observe",
+    "usb_read",
+    "process_spawn"
+  ],
+  "proof_requirements": [
+    "redacted_identity_observed",
+    "process_cleanup_verified"
+  ]
+}
