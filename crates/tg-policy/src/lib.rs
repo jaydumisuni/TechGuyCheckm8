@@ -71,9 +71,8 @@ pub fn evaluate_permissions(
         .cloned()
         .collect();
 
-    let approved = missing_human_authorization.is_empty()
-        && denied_by_policy.is_empty()
-        && granted == needed;
+    let approved =
+        missing_human_authorization.is_empty() && denied_by_policy.is_empty() && granted == needed;
 
     PermissionDecision {
         approved,
