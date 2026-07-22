@@ -54,10 +54,7 @@ impl SerialInventorySource for SerialportInventory {
     }
 }
 
-pub fn inventory_from_port_infos(
-    host: HostPlatform,
-    ports: Vec<SerialPortInfo>,
-) -> InventoryBatch {
+pub fn inventory_from_port_infos(host: HostPlatform, ports: Vec<SerialPortInfo>) -> InventoryBatch {
     let total_ports = ports.len();
     let usb_ports = ports
         .iter()
@@ -296,13 +293,7 @@ pub fn reserve_and_run_doctor<P: SerialOpenProbe>(
     }
     let selected = select_candidate(manifest, host.clone(), observations)
         .map_err(SerialPlatformError::Doctor)?;
-    let lease = acquire_preopen_lease(
-        leases,
-        &selected,
-        owner.clone(),
-        current_tick,
-        ttl_ticks,
-    )?;
+    let lease = acquire_preopen_lease(leases, &selected, owner.clone(), current_tick, ttl_ticks)?;
 
     let result = run_doctor(manifest, context, host, observations, probe);
     let (_, report) = match result {
