@@ -11,6 +11,10 @@ members = [
     "crates/tg-leases",
     "crates/tg-runtime",
     "crates/tg-simulator",
+    "crates/tg-gateway",
+    "crates/tg-process",
+    "crates/tg-journal",
+    "crates/tg-cli",
 ]
 resolver = "2"
 
@@ -24,6 +28,7 @@ authors = ["THETECHGUY DIGITAL SOLUTIONS"]
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 thiserror = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
 tg-contracts = { path = "crates/tg-contracts" }
