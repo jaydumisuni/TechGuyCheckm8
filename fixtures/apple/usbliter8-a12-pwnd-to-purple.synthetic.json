@@ -1,0 +1,45 @@
+{
+  "fixture_version": "tgcheckm8.apple-observe.fixture.v1",
+  "synthetic": true,
+  "description": "Synthetic A12 continuity fixture. It contains no real device identifiers.",
+  "catalog": [
+    {
+      "rule_id": "apple.dfu.05ac-1227",
+      "vendor_id": 1452,
+      "product_id": 4647,
+      "mode": "dfu",
+      "serial_must_contain": "CPID:"
+    },
+    {
+      "rule_id": "fixture.purple.synthetic",
+      "vendor_id": 1452,
+      "product_id": 4919,
+      "mode": "purple_diagnostic",
+      "serial_must_contain": "CPID:"
+    }
+  ],
+  "observations": [
+    {
+      "name": "pwned_dfu",
+      "vendor_id": 1452,
+      "product_id": 4647,
+      "serial": "CPID:8020 CPRV:11 CPFM:03 SCEP:01 BDID:0E ECID:DEADBEEF00000001 IBFL:3C SRTG:[iBoot-SYNTHETIC] PWND:[usbliter8]",
+      "product_type": "iPhone11,6",
+      "board_config": "d331pap",
+      "source": "recorded_fixture",
+      "expected_mode": "pwned_dfu",
+      "expected_pwn_provider": "usbliter8"
+    },
+    {
+      "name": "purple_reconnect",
+      "vendor_id": 1452,
+      "product_id": 4919,
+      "serial": "CPID:8020 CPRV:11 CPFM:03 SCEP:01 BDID:0E ECID:DEADBEEF00000001 IBFL:3C SRTG:[iBoot-SYNTHETIC] PWND:[usbliter8]",
+      "product_type": "iPhone11,6",
+      "board_config": "d331pap",
+      "source": "recorded_fixture",
+      "expected_mode": "purple_diagnostic",
+      "expected_identity_match": true
+    }
+  ]
+}
