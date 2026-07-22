@@ -21,6 +21,7 @@ members = [
     "crates/tg-usbliter8",
     "crates/tg-purple-boot",
     "crates/tg-syscfg-serial",
+    "crates/tg-serial-doctor",
 ]
 resolver = "2"
 
