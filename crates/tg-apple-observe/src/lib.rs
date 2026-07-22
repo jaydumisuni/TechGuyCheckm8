@@ -21,7 +21,7 @@ pub enum ObservationSource {
     RecordedFixture,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct RawUsbObservation {
     pub vendor_id: u16,
     pub product_id: u16,
@@ -85,12 +85,12 @@ pub fn observe(
         .rules
         .iter()
         .filter(|rule| rule.vendor_id == raw.vendor_id && rule.product_id == raw.product_id)
-        .filter(|rule| {
-            rule.serial_must_contain.as_ref().map_or(true, |required| {
-                raw.serial
-                    .as_deref()
-                    .map_or(false, |serial| serial.contains(required))
-            })
+        .filter(|rule| match rule.serial_must_contain.as_ref() {
+            None => true,
+            Some(required) => raw
+                .serial
+                .as_deref()
+                .is_some_and(|serial| serial.contains(required)),
         })
         .collect();
 
