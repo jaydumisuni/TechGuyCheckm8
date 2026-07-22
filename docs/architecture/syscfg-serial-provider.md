@@ -86,6 +86,23 @@ Every field that may have been written is restored in reverse order with the bac
 
 A `recovery_required` result must block normal session completion and preserve the encrypted backup and evidence package.
 
+## Field promotion criteria
+
+A real field remains read-only until a separate promotion record proves all of the following on the exact product and board route:
+
+1. the field has a documented repair purpose that does not replace device identity or ownership data;
+2. at least two independent read captures produce a stable parser result;
+3. the complete pre-write `syscfg list` is encrypted and rollback-ready;
+4. a controlled write changes only the selected field;
+5. immediate read-back matches the requested value exactly;
+6. restore of the previous value succeeds and reads back exactly;
+7. a power-cycle or normal reboot does not reveal collateral configuration changes;
+8. the hardware evidence package identifies the Diags image, serial link, device route and provider versions;
+9. Sergeant and the Rust proof suite pass with the promoted manifest;
+10. the stable policy explicitly allows the field class.
+
+Source-code support, a successful upstream screenshot, or a writable text box is not hardware proof. Identity-critical and unknown fields cannot be promoted through this process.
+
 ## Deliberate exclusions
 
 This phase contains no real serial-port implementation, driver selection, DCSD pin control, Purple boot execution, Apple asset, unrestricted terminal, activation operation, serial-number rewrite, MAC-address rewrite or other identity-field write.
