@@ -63,8 +63,10 @@ pub fn evaluate_final_proof(
             continue;
         }
 
-        let unique_sources: BTreeSet<_> =
-            matching.iter().map(|record| record.source.clone()).collect();
+        let unique_sources: BTreeSet<_> = matching
+            .iter()
+            .map(|record| record.source.clone())
+            .collect();
         if unique_sources.len() < requirement.minimum_valid_records {
             missing.push(format!(
                 "{} requires {} independent source(s), found {}",
