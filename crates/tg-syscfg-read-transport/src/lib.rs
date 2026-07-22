@@ -213,6 +213,20 @@ pub struct RawCommandResponse {
 }
 
 impl RawCommandResponse {
+    pub fn from_channel(
+        bytes: Vec<u8>,
+        bytes_written: usize,
+        prompt_verified: bool,
+        timeout_count: u16,
+    ) -> Self {
+        Self {
+            bytes,
+            bytes_written,
+            prompt_verified,
+            timeout_count,
+        }
+    }
+
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -270,10 +284,12 @@ impl SysCfgReadCommandChannel for SerialportSysCfgReadChannel {
         let mut response = Vec::new();
         let mut chunk = vec![0u8; policy.read_chunk_bytes];
         let mut consecutive_timeouts = 0u16;
+        let mut total_timeouts = 0u16;
         loop {
             match port.read(&mut chunk) {
                 Ok(0) => {
                     consecutive_timeouts = consecutive_timeouts.saturating_add(1);
+                    total_timeouts = total_timeouts.saturating_add(1);
                 }
                 Ok(count) => {
                     response.extend_from_slice(&chunk[..count]);
@@ -284,16 +300,17 @@ impl SysCfgReadCommandChannel for SerialportSysCfgReadChannel {
                         ));
                     }
                     if contains_prompt_line(&response) {
-                        return Ok(RawCommandResponse {
-                            bytes: response,
-                            bytes_written: command.as_bytes().len(),
-                            prompt_verified: true,
-                            timeout_count: 0,
-                        });
+                        return Ok(RawCommandResponse::from_channel(
+                            response,
+                            command.as_bytes().len(),
+                            true,
+                            total_timeouts,
+                        ));
                     }
                 }
                 Err(error) if error.kind() == ErrorKind::TimedOut => {
                     consecutive_timeouts = consecutive_timeouts.saturating_add(1);
+                    total_timeouts = total_timeouts.saturating_add(1);
                 }
                 Err(error) => {
                     return Err(SysCfgReadTransportError::ReadFailed(error.to_string()));
