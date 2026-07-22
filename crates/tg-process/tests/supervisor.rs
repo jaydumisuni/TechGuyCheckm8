@@ -4,9 +4,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use serde_json::Value;
-use tg_process::{
-    run_supervised, ProcessError, ProcessPolicy, ProcessSpec, TerminationReason,
-};
+use tg_process::{run_supervised, ProcessError, ProcessPolicy, ProcessSpec, TerminationReason};
 use uuid::Uuid;
 
 struct TestDirectory(PathBuf);
@@ -88,11 +86,8 @@ fn hung_worker_is_killed_at_deadline_and_cleaned() {
     let work = TestDirectory::new();
     let mut spec = spec(&work, "hang");
     spec.args.push("--sleep-ms=5000".to_owned());
-    let outcome = run_supervised(
-        &policy(&work, Duration::from_millis(100), 16 * 1024),
-        &spec,
-    )
-    .unwrap();
+    let outcome =
+        run_supervised(&policy(&work, Duration::from_millis(100), 16 * 1024), &spec).unwrap();
 
     assert_eq!(outcome.termination, TerminationReason::TimeoutKilled);
     assert!(!outcome.success);
@@ -106,11 +101,7 @@ fn stdout_and_stderr_are_bounded_without_deadlock() {
     let work = TestDirectory::new();
     let mut spec = spec(&work, "spam");
     spec.args.push("--bytes=65536".to_owned());
-    let outcome = run_supervised(
-        &policy(&work, Duration::from_secs(2), 1024),
-        &spec,
-    )
-    .unwrap();
+    let outcome = run_supervised(&policy(&work, Duration::from_secs(2), 1024), &spec).unwrap();
 
     assert!(outcome.success);
     assert_eq!(outcome.stdout.bytes.len(), 1024);
@@ -127,8 +118,7 @@ fn child_receives_only_explicit_environment() {
     let mut spec = spec(&work, "environment");
     spec.environment
         .insert("TGCHECKM8_ALLOWED".to_owned(), "visible".to_owned());
-    let outcome =
-        run_supervised(&policy(&work, Duration::from_secs(2), 16 * 1024), &spec).unwrap();
+    let outcome = run_supervised(&policy(&work, Duration::from_secs(2), 16 * 1024), &spec).unwrap();
 
     let line = outcome.stdout.utf8_lossy();
     let payload: Value = serde_json::from_str(line.trim()).unwrap();
@@ -165,10 +155,7 @@ fn working_directory_outside_approved_root_is_rejected() {
     spec.working_directory = outside_work.0.clone();
 
     assert!(matches!(
-        run_supervised(
-            &policy(&approved_work, Duration::from_secs(1), 1024),
-            &spec
-        ),
+        run_supervised(&policy(&approved_work, Duration::from_secs(1), 1024), &spec),
         Err(ProcessError::WorkingDirectoryOutsideApprovedRoot(_))
     ));
 }

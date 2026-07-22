@@ -78,9 +78,7 @@ fn verify_journal_reports_chain_summary() {
     let session = Uuid::new_v4();
     let path = {
         let mut journal = Journal::open(&root.0, session).unwrap();
-        journal
-            .append("session_started", BTreeMap::new())
-            .unwrap();
+        journal.append("session_started", BTreeMap::new()).unwrap();
         journal.path().to_path_buf()
     };
 

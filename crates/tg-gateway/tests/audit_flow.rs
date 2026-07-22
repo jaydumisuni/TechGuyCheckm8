@@ -94,10 +94,7 @@ fn accepted_health_request_is_committed_to_verified_session_journal() {
     assert_eq!(response.request_id, request.request_id);
     server.join().unwrap();
 
-    let path = root
-        .0
-        .join(session_id.to_string())
-        .join("events.jsonl");
+    let path = root.0.join(session_id.to_string()).join("events.jsonl");
     let verified = verify_file(path).unwrap();
     assert_eq!(verified.session_id, Some(session_id));
     assert_eq!(verified.entries, 1);

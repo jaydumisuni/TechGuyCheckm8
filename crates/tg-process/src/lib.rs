@@ -119,8 +119,7 @@ pub fn run_supervised(
     }
 
     let working_directory = spec.working_directory.canonicalize()?;
-    if !working_directory.is_dir()
-        || !working_directory.starts_with(&policy.approved_working_root)
+    if !working_directory.is_dir() || !working_directory.starts_with(&policy.approved_working_root)
     {
         return Err(ProcessError::WorkingDirectoryOutsideApprovedRoot(
             working_directory,
@@ -187,7 +186,8 @@ fn canonical_directory(path: PathBuf) -> Result<PathBuf, ProcessError> {
 
 fn validate_environment(environment: &BTreeMap<String, String>) -> Result<(), ProcessError> {
     for (key, value) in environment {
-        if key.trim().is_empty() || key.contains('=') || key.contains('\0') || value.contains('\0') {
+        if key.trim().is_empty() || key.contains('=') || key.contains('\0') || value.contains('\0')
+        {
             return Err(ProcessError::InvalidEnvironmentKey(key.clone()));
         }
     }

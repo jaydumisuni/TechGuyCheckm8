@@ -96,7 +96,9 @@ fn loopback_gateway_validates_handshake_and_correlates_response() {
 
     let codec = FrameCodec::new(16 * 1024).unwrap();
     let mut client = TcpStream::connect(address).unwrap();
-    client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
     let request = health_request();
     codec.write_frame(&mut client, &connect_frame()).unwrap();
     codec
@@ -108,7 +110,10 @@ fn loopback_gateway_validates_handshake_and_correlates_response() {
         panic!("expected response frame");
     };
     assert_eq!(response.request_id, request.request_id);
-    assert_eq!(response.result.get("status").map(String::as_str), Some("ready"));
+    assert_eq!(
+        response.result.get("status").map(String::as_str),
+        Some("ready")
+    );
 
     let exchange = server.join().unwrap();
     assert_eq!(exchange.peer_id, "local-test-client");

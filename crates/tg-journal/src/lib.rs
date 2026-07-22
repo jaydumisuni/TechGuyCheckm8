@@ -58,9 +58,7 @@ impl Journal {
         reject_symlink(&path)?;
         let existing = if path.exists() {
             let verification = verify_file(&path)?;
-            if verification.session_id.is_some()
-                && verification.session_id != Some(session_id)
-            {
+            if verification.session_id.is_some() && verification.session_id != Some(session_id) {
                 return Err(JournalError::SessionMismatch);
             }
             Some(verification)
@@ -324,9 +322,7 @@ fn read_bounded_line<R: BufRead>(
         let newline = available.iter().position(|byte| *byte == b'\n');
         let take = newline.map_or(available.len(), |index| index + 1);
         if line.len().saturating_add(take) > limit {
-            return Err(JournalError::LineTooLarge(
-                line.len().saturating_add(take),
-            ));
+            return Err(JournalError::LineTooLarge(line.len().saturating_add(take)));
         }
         line.extend_from_slice(&available[..take]);
         reader.consume(take);

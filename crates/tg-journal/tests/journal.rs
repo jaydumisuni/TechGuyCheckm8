@@ -91,18 +91,12 @@ fn payload_tampering_is_detected() {
     let session = Uuid::new_v4();
     let path = {
         let mut journal = Journal::open(&root.0, session).unwrap();
-        journal
-            .append("session_started", BTreeMap::new())
-            .unwrap();
+        journal.append("session_started", BTreeMap::new()).unwrap();
         journal.path().to_path_buf()
     };
 
     let content = fs::read_to_string(&path).unwrap();
-    fs::write(
-        &path,
-        content.replace("session_started", "session_stopped"),
-    )
-    .unwrap();
+    fs::write(&path, content.replace("session_started", "session_stopped")).unwrap();
     assert!(matches!(
         verify_file(path),
         Err(JournalError::HashMismatch { sequence: 1 })
