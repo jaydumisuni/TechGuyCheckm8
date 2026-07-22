@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use serde::Deserialize;
 use tg_apple_observe::{
-    default_apple_dfu_rule, lock_identity, match_reconnect, observe, ModeRule,
-    ObservationCatalog, ObservationError, ObservationSource, RawUsbObservation,
+    default_apple_dfu_rule, lock_identity, match_reconnect, observe, ModeRule, ObservationCatalog,
+    ObservationError, ObservationSource, RawUsbObservation,
 };
 use tg_contracts::DeviceMode;
 
@@ -139,10 +139,7 @@ fn incomplete_dfu_identity_cannot_be_locked() {
     let raw = dfu("CPID:8020 PWND:[usbliter8]");
     let observed = observe(&catalog(), &raw).unwrap();
 
-    assert_eq!(
-        lock_identity(&observed),
-        Err(ObservationError::MissingEcid)
-    );
+    assert_eq!(lock_identity(&observed), Err(ObservationError::MissingEcid));
 }
 
 #[derive(Debug, Deserialize)]
