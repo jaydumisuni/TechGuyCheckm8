@@ -471,10 +471,10 @@ fn unknown_print_key_is_blocked_before_channel_execution() {
 fn frame_policy_cannot_exceed_provider_limit() {
     let mut policy = frame_policy();
     policy.max_response_bytes = 4097;
-    assert_eq!(
+    assert!(matches!(
         policy.validate(&provider_manifest()),
         Err(SysCfgReadTransportError::InvalidResponseLimit(4097))
-    );
+    ));
 }
 
 #[test]
