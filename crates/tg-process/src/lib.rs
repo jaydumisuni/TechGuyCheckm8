@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::io::{self, Read};
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Stdio};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -227,10 +227,10 @@ fn join_capture(
     handle: JoinHandle<io::Result<CapturedStream>>,
     stream: &'static str,
 ) -> Result<CapturedStream, ProcessError> {
-    handle
+    let captured = handle
         .join()
-        .map_err(|_| ProcessError::CaptureThreadPanicked(stream))??
-        .pipe(Ok)
+        .map_err(|_| ProcessError::CaptureThreadPanicked(stream))??;
+    Ok(captured)
 }
 
 fn terminate_child(child: &mut std::process::Child) -> Result<(), ProcessError> {
@@ -246,26 +246,17 @@ fn terminate_child(child: &mut std::process::Child) -> Result<(), ProcessError> 
     }
 }
 
+#[cfg(windows)]
 fn apply_platform_environment(command: &mut Command) {
-    #[cfg(windows)]
-    {
-        for key in ["SystemRoot", "WINDIR"] {
-            if let Some(value) = std::env::var_os(key) {
-                command.env(key, value);
-            }
+    for key in ["SystemRoot", "WINDIR"] {
+        if let Some(value) = std::env::var_os(key) {
+            command.env(key, value);
         }
     }
-    #[cfg(not(windows))]
-    let _ = command;
 }
 
-trait Pipe: Sized {
-    fn pipe<T>(self, function: impl FnOnce(Self) -> T) -> T {
-        function(self)
-    }
-}
-
-impl<T> Pipe for T {}
+#[cfg(not(windows))]
+fn apply_platform_environment(_command: &mut Command) {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProcessError {
