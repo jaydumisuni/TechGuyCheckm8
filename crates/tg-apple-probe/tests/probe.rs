@@ -55,7 +55,7 @@ fn manifest(hash: String, maturity: Maturity, licence: Option<&str>) -> ReadOnly
         source_repository: "https://github.com/libimobiledevice/libirecovery".to_owned(),
         source_commit: "04d04f7cbaa4696504e91c1478ddd56160ed6776".to_owned(),
         declared_licence: licence.map(str::to_owned),
-        expected_executable_sha256: hash,
+        expected_executable_sha256: Some(hash),
         requested_permissions: grants(),
         proof_requirements: BTreeSet::from([
             "redacted_identity_observed".to_owned(),
@@ -193,6 +193,60 @@ fn manifest_cannot_expand_the_fixed_permission_contract() {
         .findings
         .iter()
         .any(|finding| finding.contains("permissions")));
+}
+
+#[test]
+fn unpinned_research_probe_is_trackable_but_not_runnable() {
+    let work = TestDirectory::new();
+    let hash = sha256_file(fixture_binary()).unwrap();
+    let mut manifest = manifest(hash, Maturity::Discovered, Some("LGPL-2.1-only"));
+    manifest.expected_executable_sha256 = None;
+
+    let report = inspect_installation(
+        &manifest,
+        &installation(&work),
+        std::env::consts::OS,
+        "development",
+    );
+    assert!(!report.ready);
+    assert!(report
+        .findings
+        .iter()
+        .any(|finding| finding.contains("not pinned")));
+    assert!(matches!(
+        run_probe(
+            &process_policy(&work),
+            &manifest,
+            &installation(&work),
+            &grants(),
+            std::env::consts::OS,
+            "development"
+        ),
+        Err(ProbeError::UnpinnedExecutable)
+    ));
+}
+
+#[test]
+fn invalid_hash_format_is_rejected_by_manifest_validation() {
+    let work = TestDirectory::new();
+    let mut manifest = manifest(
+        "00".repeat(32),
+        Maturity::SimulationTested,
+        Some("LGPL-2.1-only"),
+    );
+    manifest.expected_executable_sha256 = Some("not-a-sha256".to_owned());
+
+    let report = inspect_installation(
+        &manifest,
+        &installation(&work),
+        std::env::consts::OS,
+        "development",
+    );
+    assert!(!report.ready);
+    assert!(report
+        .findings
+        .iter()
+        .any(|finding| finding.contains("64 hexadecimal")));
 }
 
 #[test]
