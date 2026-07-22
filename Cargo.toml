@@ -16,6 +16,7 @@ members = [
     "crates/tg-journal",
     "crates/tg-cli",
     "crates/tg-purple",
+    "crates/tg-apple-observe",
 ]
 resolver = "2"
 
