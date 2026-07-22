@@ -55,7 +55,10 @@ fn identity_mismatch_blocks_execution() {
 
     assert_eq!(outcome.result, StageResult::IdentityMismatch);
     assert!(!outcome.events.contains(&"stage_started".to_owned()));
-    assert_eq!(outcome.events, ["identity_mismatch", "execution_blocked"]);
+    assert_eq!(
+        outcome.events,
+        vec!["identity_mismatch".to_owned(), "execution_blocked".to_owned()]
+    );
 }
 
 #[test]
