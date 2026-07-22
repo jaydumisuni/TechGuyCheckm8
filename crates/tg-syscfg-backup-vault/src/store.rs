@@ -165,8 +165,8 @@ fn read_bounded_file(path: &Path) -> Result<Vec<u8>, SysCfgBackupVaultError> {
     if metadata.len() > MAX_ENVELOPE_BYTES as u64 {
         return Err(SysCfgBackupVaultError::EnvelopeTooLarge);
     }
-    let file = File::open(path)
-        .map_err(|error| SysCfgBackupVaultError::VaultRead(error.to_string()))?;
+    let file =
+        File::open(path).map_err(|error| SysCfgBackupVaultError::VaultRead(error.to_string()))?;
     let mut package = Vec::new();
     file.take((MAX_ENVELOPE_BYTES + 1) as u64)
         .read_to_end(&mut package)
