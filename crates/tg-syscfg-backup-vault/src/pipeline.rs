@@ -36,6 +36,48 @@ impl fmt::Debug for BackupAuthorization {
     }
 }
 
+pub struct CapturedSysCfgList<'a> {
+    pub endpoint: &'a BoundReadEndpoint,
+    pub provider: &'a SysCfgSerialProviderManifest,
+    pub context: &'a SysCfgSerialContext,
+    pub read_receipt: &'a ReadExchangeReceipt,
+    pub raw_response: &'a [u8],
+}
+
+impl fmt::Debug for CapturedSysCfgList<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CapturedSysCfgList")
+            .field("endpoint", self.endpoint)
+            .field("provider_id", &self.provider.provider_id)
+            .field("session_id", &self.context.session_id)
+            .field("read_receipt", self.read_receipt)
+            .field("raw_response_bytes", &self.raw_response.len())
+            .field("raw_response_sha256", &sha256_hex(self.raw_response))
+            .field("raw_response", &"<redacted>")
+            .finish()
+    }
+}
+
+pub struct BackupVaultRequest<'a> {
+    pub capture: CapturedSysCfgList<'a>,
+    pub authorization: &'a BackupAuthorization,
+    pub vault: &'a FileBackupVault,
+    pub key: &'a VaultKey,
+}
+
+impl fmt::Debug for BackupVaultRequest<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("BackupVaultRequest")
+            .field("capture", &self.capture)
+            .field("authorization", self.authorization)
+            .field("vault", self.vault)
+            .field("key", self.key)
+            .finish()
+    }
+}
+
 pub fn required_backup_permissions() -> BTreeSet<Permission> {
     BTreeSet::from([
         Permission::DeviceObserve,
@@ -56,15 +98,22 @@ pub struct BackupPipelineEvidence {
 }
 
 pub fn capture_encrypt_verify_backup(
-    endpoint: &BoundReadEndpoint,
-    provider: &SysCfgSerialProviderManifest,
-    context: &SysCfgSerialContext,
-    read_receipt: &ReadExchangeReceipt,
-    raw_response: &[u8],
-    authorization: &BackupAuthorization,
-    vault: &FileBackupVault,
-    key: &VaultKey,
+    request: BackupVaultRequest<'_>,
 ) -> Result<BackupPipelineEvidence, SysCfgBackupVaultError> {
+    let BackupVaultRequest {
+        capture,
+        authorization,
+        vault,
+        key,
+    } = request;
+    let CapturedSysCfgList {
+        endpoint,
+        provider,
+        context,
+        read_receipt,
+        raw_response,
+    } = capture;
+
     validate_scope(endpoint, context, read_receipt, authorization)?;
     if context.granted_permissions != required_read_permissions() {
         return Err(SysCfgBackupVaultError::LogicalReadPermissionMismatch);
