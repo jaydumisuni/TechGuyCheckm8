@@ -440,11 +440,7 @@ fn missing_permission_and_expired_lease_block_before_persistence() {
         &device_hash,
         list_receipt(&endpoint, raw),
         raw,
-        authorization(
-            session_id,
-            &device_hash,
-            endpoint.lease.expires_at_tick
-        ),
+        authorization(session_id, &device_hash, endpoint.lease.expires_at_tick),
         &vault,
         &key
     )
