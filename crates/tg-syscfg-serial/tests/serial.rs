@@ -200,8 +200,11 @@ fn prepared_plan() -> (
     (manifest, plan)
 }
 
+type ScriptedResponse = Result<Vec<u8>, SerialTransportError>;
+type ScriptedExchange = (Vec<u8>, ScriptedResponse);
+
 struct ScriptedTransport {
-    exchanges: VecDeque<(Vec<u8>, Result<Vec<u8>, SerialTransportError>)>,
+    exchanges: VecDeque<ScriptedExchange>,
 }
 
 impl ScriptedTransport {
