@@ -11,7 +11,7 @@ use tg_serial_doctor::{
 };
 use tg_serial_platform::{
     inventory_from_port_infos, reserve_and_run_doctor, synthetic_usb_port,
-    OpenSafetyAcknowledgement, SerialPlatformError, SerialportOpenProbe,
+    OpenSafetyAcknowledgement, PlatformDoctorReservation, SerialPlatformError, SerialportOpenProbe,
 };
 use tg_syscfg_serial::SerialLink;
 use uuid::Uuid;
@@ -200,9 +200,11 @@ fn reservation_precedes_probe_and_is_retained_on_success() {
         &batch.observations,
         &mut probe,
         &mut leases,
-        owner,
-        10,
-        30,
+        PlatformDoctorReservation {
+            owner,
+            current_tick: 10,
+            ttl_ticks: 30,
+        },
     )
     .expect("ready probe should keep its lease");
 
@@ -240,9 +242,11 @@ fn blocked_probe_releases_preopen_lease() {
         &batch.observations,
         &mut probe,
         &mut leases,
-        owner,
-        10,
-        30,
+        PlatformDoctorReservation {
+            owner,
+            current_tick: 10,
+            ttl_ticks: 30,
+        },
     )
     .expect_err("non-exclusive open must be blocked");
 
@@ -281,9 +285,11 @@ fn lease_owner_must_match_the_doctor_session() {
             &batch.observations,
             &mut probe,
             &mut leases,
-            owner,
-            10,
-            30,
+            PlatformDoctorReservation {
+                owner,
+                current_tick: 10,
+                ttl_ticks: 30,
+            },
         ),
         Err(SerialPlatformError::LeaseSessionMismatch)
     );
