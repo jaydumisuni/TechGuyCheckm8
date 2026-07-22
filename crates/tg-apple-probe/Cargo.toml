@@ -19,4 +19,5 @@ tg-apple-observe = { path = "../tg-apple-observe" }
 tg-process = { path = "../tg-process" }
 
 [dev-dependencies]
+serde_json.workspace = true
 uuid.workspace = true
