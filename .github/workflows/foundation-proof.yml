@@ -105,7 +105,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
-          from pathlib import import Path
+          from pathlib import Path
 
           suite = json.loads(Path("sergeant-proof-suite.json").read_text(encoding="utf-8"))
           final = json.loads(Path("sergeant-final-proof.json").read_text(encoding="utf-8"))
