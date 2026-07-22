@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use tg_contracts::{
-    DeviceIdentity, DeviceMode, FirmwareIdentity, HostIdentity, Maturity, OperationKind, Permission,
-    SessionRequest,
+    DeviceIdentity, DeviceMode, FirmwareIdentity, HostIdentity, Maturity, OperationKind,
+    Permission, SessionRequest,
 };
 use tg_router::{select_route, AvailableResources, RouteManifest};
 
@@ -96,10 +96,7 @@ fn ambiguous_exact_matches_are_blocked() {
     );
 
     assert!(!decision.approved);
-    assert_eq!(
-        decision.rationale_codes,
-        vec!["ambiguous_route".to_owned()]
-    );
+    assert_eq!(decision.rationale_codes, vec!["ambiguous_route".to_owned()]);
 }
 
 #[test]
