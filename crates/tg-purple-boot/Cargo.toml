@@ -1,0 +1,18 @@
+[package]
+name = "tg-purple-boot"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+tg-contracts.workspace = true
+tg-apple-observe = { path = "../tg-apple-observe" }
+tg-usbliter8 = { path = "../tg-usbliter8" }
+
+[dev-dependencies]
+serde_json.workspace = true
