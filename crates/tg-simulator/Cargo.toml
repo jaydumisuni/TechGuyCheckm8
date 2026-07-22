@@ -11,3 +11,9 @@ tg-contracts.workspace = true
 tg-evidence = { path = "../tg-evidence" }
 serde.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+tg-leases = { path = "../tg-leases" }
+tg-protocol = { path = "../tg-protocol" }
+tg-runtime = { path = "../tg-runtime" }
+tg-worker = { path = "../tg-worker" }
