@@ -18,6 +18,7 @@ members = [
     "crates/tg-purple",
     "crates/tg-apple-observe",
     "crates/tg-apple-probe",
+    "crates/tg-usbliter8",
 ]
 resolver = "2"
 
