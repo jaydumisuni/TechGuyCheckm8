@@ -54,16 +54,8 @@ fn independent_sources_satisfy_requirement() {
     let decision = evaluate_final_proof(
         &[requirement(2)],
         &[
-            evidence(
-                "pwned_dfu",
-                EvidenceClass::Transition,
-                "exploit-worker",
-            ),
-            evidence(
-                "pwned_dfu",
-                EvidenceClass::Transition,
-                "usb-observer",
-            ),
+            evidence("pwned_dfu", EvidenceClass::Transition, "exploit-worker"),
+            evidence("pwned_dfu", EvidenceClass::Transition, "usb-observer"),
         ],
     );
 
@@ -74,16 +66,8 @@ fn independent_sources_satisfy_requirement() {
 
 #[test]
 fn contradiction_blocks_final_proof() {
-    let first = evidence(
-        "pwned_dfu",
-        EvidenceClass::Transition,
-        "exploit-worker",
-    );
-    let mut second = evidence(
-        "pwned_dfu",
-        EvidenceClass::Transition,
-        "usb-observer",
-    );
+    let first = evidence("pwned_dfu", EvidenceClass::Transition, "exploit-worker");
+    let mut second = evidence("pwned_dfu", EvidenceClass::Transition, "usb-observer");
     second.contradicts.push(first.evidence_id);
 
     let decision = evaluate_final_proof(&[requirement(2)], &[first, second]);
