@@ -127,11 +127,8 @@ fn child_receives_only_explicit_environment() {
     let mut spec = spec(&work, "environment");
     spec.environment
         .insert("TGCHECKM8_ALLOWED".to_owned(), "visible".to_owned());
-    let outcome = run_supervised(
-        &policy(&work, Duration::from_secs(2), 16 * 1024),
-        &spec,
-    )
-    .unwrap();
+    let outcome =
+        run_supervised(&policy(&work, Duration::from_secs(2), 16 * 1024), &spec).unwrap();
 
     let line = outcome.stdout.utf8_lossy();
     let payload: Value = serde_json::from_str(line.trim()).unwrap();
@@ -184,10 +181,7 @@ fn invalid_environment_key_is_rejected_before_spawn() {
         .insert("BAD=KEY".to_owned(), "value".to_owned());
 
     assert!(matches!(
-        run_supervised(
-            &policy(&work, Duration::from_secs(1), 1024),
-            &spec
-        ),
+        run_supervised(&policy(&work, Duration::from_secs(1), 1024), &spec),
         Err(ProcessError::InvalidEnvironmentKey(key)) if key == "BAD=KEY"
     ));
 }
