@@ -10,3 +10,6 @@ authors.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tg-protocol = { path = "../tg-protocol" }
+
+[dev-dependencies]
+uuid.workspace = true
