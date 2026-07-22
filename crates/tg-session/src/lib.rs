@@ -78,10 +78,9 @@ pub fn can_transition(from: &SessionState, to: &SessionState) -> bool {
             to,
             WaitingForDeviceMode | ExecutingStage | RecoveryRequired | Failed | Cancelled
         ),
-        WaitingForDeviceMode => matches!(
-            to,
-            ExecutingStage | RecoveryRequired | Failed | Cancelled
-        ),
+        WaitingForDeviceMode => {
+            matches!(to, ExecutingStage | RecoveryRequired | Failed | Cancelled)
+        }
         ExecutingStage => matches!(
             to,
             StageVerification | RecoveryRequired | Failed | Cancelled
