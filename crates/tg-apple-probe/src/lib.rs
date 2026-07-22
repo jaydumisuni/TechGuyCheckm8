@@ -14,7 +14,7 @@ use tg_apple_observe::{
     default_apple_dfu_rule, observe, ObservationCatalog, ObservationSource,
     ObservedAppleDevice, RawUsbObservation,
 };
-use tg_contracts::{DeviceMode, Maturity};
+use tg_contracts::{DeviceMode, Maturity, Permission};
 use tg_process::{run_supervised, ProcessPolicy, ProcessSpec, TerminationReason};
 
 pub const PROBE_CONTRACT_VERSION: &str = "tgcheckm8.apple-probe.v1";
@@ -31,6 +31,16 @@ impl ProbeProfile {
             Self::IRecoveryDfuQuery => vec!["-q".to_owned()],
         }
     }
+
+    pub fn required_permissions(&self) -> BTreeSet<Permission> {
+        match self {
+            Self::IRecoveryDfuQuery => BTreeSet::from([
+                Permission::DeviceObserve,
+                Permission::UsbRead,
+                Permission::ProcessSpawn,
+            ]),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +55,7 @@ pub struct ReadOnlyProbeManifest {
     pub source_commit: String,
     pub declared_licence: Option<String>,
     pub expected_executable_sha256: String,
+    pub requested_permissions: BTreeSet<Permission>,
     pub proof_requirements: BTreeSet<String>,
 }
 
@@ -71,6 +82,7 @@ pub struct ProbeRunEvidence {
     pub probe_id: String,
     pub probe_version: String,
     pub executable_sha256: String,
+    pub granted_permissions: BTreeSet<Permission>,
     pub termination: String,
     pub status_code: Option<i32>,
     pub stdout_truncated: bool,
@@ -112,6 +124,9 @@ pub fn validate_manifest(
     if !manifest.supported_hosts.contains(host) {
         return Err(ProbeError::UnsupportedHost(host.to_owned()));
     }
+    if manifest.requested_permissions != manifest.profile.required_permissions() {
+        return Err(ProbeError::PermissionContractMismatch);
+    }
     if manifest
         .proof_requirements
         .iter()
@@ -129,12 +144,9 @@ pub fn validate_manifest(
         if manifest.maturity != Maturity::Stable {
             return Err(ProbeError::ImmatureStableProbe);
         }
-        if manifest
-            .declared_licence
-            .as_deref()
-            .map_or(true, str::is_empty)
-        {
-            return Err(ProbeError::MissingDeclaredLicence);
+        match manifest.declared_licence.as_deref() {
+            Some(licence) if !licence.trim().is_empty() => {}
+            _ => return Err(ProbeError::MissingDeclaredLicence),
         }
     }
     Ok(())
@@ -193,10 +205,20 @@ pub fn run_probe(
     process_policy: &ProcessPolicy,
     manifest: &ReadOnlyProbeManifest,
     installation: &ProbeInstallation,
+    granted_permissions: &BTreeSet<Permission>,
     host: &str,
     policy_profile: &str,
 ) -> Result<ProbeRunEvidence, ProbeError> {
     validate_manifest(manifest, host, policy_profile)?;
+    let required_permissions = manifest.profile.required_permissions();
+    let missing_permissions: Vec<Permission> = required_permissions
+        .difference(granted_permissions)
+        .cloned()
+        .collect();
+    if !missing_permissions.is_empty() {
+        return Err(ProbeError::MissingPermissions(missing_permissions));
+    }
+
     let executable_sha256 = sha256_file(&installation.executable)?;
     if executable_sha256 != manifest.expected_executable_sha256 {
         return Err(ProbeError::ExecutableHashMismatch);
@@ -240,6 +262,7 @@ pub fn run_probe(
         probe_id: manifest.probe_id.clone(),
         probe_version: manifest.version.clone(),
         executable_sha256,
+        granted_permissions: required_permissions,
         termination: match outcome.termination {
             TerminationReason::Exited => "exited".to_owned(),
             TerminationReason::TimeoutKilled => "timeout_killed".to_owned(),
@@ -374,6 +397,10 @@ pub enum ProbeError {
     IncompleteManifest,
     #[error("probe does not declare support for host: {0}")]
     UnsupportedHost(String),
+    #[error("probe manifest permissions do not match the fixed read-only profile")]
+    PermissionContractMismatch,
+    #[error("probe execution is missing permissions: {0:?}")]
+    MissingPermissions(Vec<Permission>),
     #[error("probe manifest contains an empty proof requirement")]
     InvalidProofRequirement,
     #[error("probe manifest is missing redacted identity proof")]
