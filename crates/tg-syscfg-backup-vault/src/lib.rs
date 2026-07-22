@@ -14,7 +14,7 @@ pub use envelope::{EncryptedBackupReceipt, VerifiedBackupRead};
 pub use key::VaultKey;
 pub use pipeline::{
     capture_encrypt_verify_backup, required_backup_permissions, BackupAuthorization,
-    BackupPipelineEvidence,
+    BackupPipelineEvidence, BackupVaultRequest, CapturedSysCfgList,
 };
 pub use store::FileBackupVault;
 
