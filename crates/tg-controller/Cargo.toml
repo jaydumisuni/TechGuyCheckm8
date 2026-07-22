@@ -8,6 +8,7 @@ authors.workspace = true
 
 [dependencies]
 tg-contracts.workspace = true
+thiserror.workspace = true
 tg-policy = { path = "../tg-policy" }
 tg-router = { path = "../tg-router" }
 tg-session = { path = "../tg-session" }
