@@ -15,6 +15,13 @@ sha2.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 zeroize.workspace = true
+tg-contracts = { path = "../tg-contracts" }
 tg-purple = { path = "../tg-purple" }
 tg-syscfg-read-transport = { path = "../tg-syscfg-read-transport" }
 tg-syscfg-serial = { path = "../tg-syscfg-serial" }
+
+[dev-dependencies]
+tg-leases = { path = "../tg-leases" }
+tg-purple-boot = { path = "../tg-purple-boot" }
+tg-serial-doctor = { path = "../tg-serial-doctor" }
+tg-serial-platform = { path = "../tg-serial-platform" }
