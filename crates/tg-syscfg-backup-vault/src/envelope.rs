@@ -133,9 +133,7 @@ pub(crate) fn open(
     let decoded = decode(package)?;
     let metadata: VaultMetadata = serde_json::from_slice(decoded.metadata)
         .map_err(|error| SysCfgBackupVaultError::Metadata(error.to_string()))?;
-    if metadata.schema_version != SYSCFG_BACKUP_VAULT_VERSION
-        || metadata.key_id != key.key_id()
-    {
+    if metadata.schema_version != SYSCFG_BACKUP_VAULT_VERSION || metadata.key_id != key.key_id() {
         return Err(SysCfgBackupVaultError::MetadataScopeMismatch);
     }
     let cipher = XChaCha20Poly1305::new_from_slice(key.bytes())
@@ -175,10 +173,10 @@ fn encode(
     metadata: &[u8],
     ciphertext: &[u8],
 ) -> Result<Vec<u8>, SysCfgBackupVaultError> {
-    let metadata_len = u32::try_from(metadata.len())
-        .map_err(|_| SysCfgBackupVaultError::EnvelopeTooLarge)?;
-    let ciphertext_len = u64::try_from(ciphertext.len())
-        .map_err(|_| SysCfgBackupVaultError::EnvelopeTooLarge)?;
+    let metadata_len =
+        u32::try_from(metadata.len()).map_err(|_| SysCfgBackupVaultError::EnvelopeTooLarge)?;
+    let ciphertext_len =
+        u64::try_from(ciphertext.len()).map_err(|_| SysCfgBackupVaultError::EnvelopeTooLarge)?;
     let capacity = MAGIC
         .len()
         .checked_add(2)
