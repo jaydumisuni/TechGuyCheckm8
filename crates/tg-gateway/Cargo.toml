@@ -12,4 +12,5 @@ thiserror.workspace = true
 tg-protocol = { path = "../tg-protocol" }
 
 [dev-dependencies]
+tg-journal = { path = "../tg-journal" }
 uuid.workspace = true
