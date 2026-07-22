@@ -82,7 +82,7 @@ fn unknown_firmware_is_blocked() {
     );
 
     assert!(!decision.approved);
-    assert_eq!(decision.rationale_codes, ["no_exact_route"]);
+    assert_eq!(decision.rationale_codes, vec!["no_exact_route".to_owned()]);
 }
 
 #[test]
@@ -96,7 +96,10 @@ fn ambiguous_exact_matches_are_blocked() {
     );
 
     assert!(!decision.approved);
-    assert_eq!(decision.rationale_codes, ["ambiguous_route"]);
+    assert_eq!(
+        decision.rationale_codes,
+        vec!["ambiguous_route".to_owned()]
+    );
 }
 
 #[test]
