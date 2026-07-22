@@ -96,7 +96,7 @@ impl RuntimeLedger {
         if record.session_id != session_id {
             return Err(RuntimeError::SessionMismatch);
         }
-        match record.state {
+        match record.state.clone() {
             RunState::Pending | RunState::Active => {
                 record.state = RunState::CancellationRequested;
                 Ok(record.clone())
