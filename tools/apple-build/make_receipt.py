@@ -38,7 +38,12 @@ def command_output(command: list[str]) -> str:
     return completed.stdout.strip()
 
 
-def binary_record(role: str, path: Path, smoke_command: list[str]) -> dict[str, Any]:
+def binary_record(
+    role: str,
+    path: Path,
+    relative_path: str,
+    smoke_command: list[str],
+) -> dict[str, Any]:
     if not path.is_file() or path.stat().st_size <= 0:
         raise ValueError(f"missing or empty output for {role}: {path}")
     smoke = subprocess.run(
@@ -52,6 +57,7 @@ def binary_record(role: str, path: Path, smoke_command: list[str]) -> dict[str, 
     return {
         "role": role,
         "filename": path.name,
+        "relative_path": relative_path,
         "byte_len": path.stat().st_size,
         "sha256": sha256_file(path),
         "file_description": command_output(["file", str(path)]),
@@ -80,8 +86,13 @@ def main() -> int:
     irecovery = args.irecovery.resolve()
 
     records = [
-        binary_record("gaster_executable", gaster, [str(gaster)]),
-        binary_record("irecovery_executable", irecovery, [str(irecovery), "--help"]),
+        binary_record("gaster_executable", gaster, "bin/gaster", [str(gaster)]),
+        binary_record(
+            "irecovery_executable",
+            irecovery,
+            "bin/irecovery",
+            [str(irecovery), "--help"],
+        ),
     ]
     receipt = {
         "schema_version": SCHEMA,
@@ -145,7 +156,7 @@ def main() -> int:
     }
     receipt_path = output_dir / "build-receipt.json"
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    sums = "\n".join(f"{item['sha256']}  {item['filename']}" for item in records) + "\n"
+    sums = "\n".join(f"{item['sha256']}  {item['relative_path']}" for item in records) + "\n"
     (output_dir / "SHA256SUMS").write_text(sums, encoding="utf-8")
     return 0
 
