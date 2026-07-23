@@ -1,0 +1,42 @@
+{
+  "schema_version": "tgcheckm8.gaster-provider.v1",
+  "engine_id": "apple.gaster.a8-a11",
+  "source_repository": "https://github.com/0x7ff/gaster",
+  "source_commit": "7fffffff38a1bed1cdc1c5bae0df70f14395129b",
+  "licence": "Apache-2.0",
+  "executable_sha256": null,
+  "supported_cpids": [
+    "7000",
+    "7001",
+    "8000",
+    "8001",
+    "8003",
+    "8010",
+    "8011",
+    "8012",
+    "8015"
+  ],
+  "hardware_verified_cpids": [],
+  "maturity": "contract_valid",
+  "requested_permissions": [
+    "device_observe",
+    "process_spawn",
+    "usb_read",
+    "usb_write"
+  ],
+  "proof_requirements": [
+    "executable_hash_verified",
+    "gaster_pwn_process_verified",
+    "gaster_reset_process_verified",
+    "host_pwnd_reconnect_verified",
+    "same_device_identity",
+    "starting_dfu_identity_locked"
+  ],
+  "execution_enabled": false,
+  "promotion_blockers": [
+    "build and hash-pin a reviewed executable",
+    "record per-host build receipt",
+    "record same-device PWND reconnect evidence",
+    "record hardware evidence for each promoted CPID"
+  ]
+}
