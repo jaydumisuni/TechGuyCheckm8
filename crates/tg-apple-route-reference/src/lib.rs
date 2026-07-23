@@ -144,7 +144,9 @@ pub struct RouteVerificationDecision {
     pub required_proofs: BTreeSet<String>,
 }
 
-pub fn validate_manifest(manifest: &AppleRouteReferenceManifest) -> Result<(), RouteReferenceError> {
+pub fn validate_manifest(
+    manifest: &AppleRouteReferenceManifest,
+) -> Result<(), RouteReferenceError> {
     if manifest.schema_version != APPLE_ROUTE_REFERENCE_VERSION {
         return Err(RouteReferenceError::UnsupportedVersion(
             manifest.schema_version.clone(),
@@ -161,7 +163,10 @@ pub fn validate_manifest(manifest: &AppleRouteReferenceManifest) -> Result<(), R
     {
         return Err(RouteReferenceError::MissingExactCoverage);
     }
-    if !manifest.pwn_source.repository.starts_with("https://github.com/")
+    if !manifest
+        .pwn_source
+        .repository
+        .starts_with("https://github.com/")
         || !is_commit(&manifest.pwn_source.commit)
         || manifest.pwn_source.licence.trim().is_empty()
     {
@@ -198,10 +203,7 @@ pub fn validate_manifest(manifest: &AppleRouteReferenceManifest) -> Result<(), R
         _ => return Err(RouteReferenceError::GenerationProviderMismatch),
     }
     if manifest.classification == ReferenceClassification::DocumentedKnownGood
-        && matches!(
-            manifest.maturity,
-            Maturity::Discovered | Maturity::Imported
-        )
+        && matches!(manifest.maturity, Maturity::Discovered | Maturity::Imported)
     {
         return Err(RouteReferenceError::InsufficientReferenceMaturity);
     }
