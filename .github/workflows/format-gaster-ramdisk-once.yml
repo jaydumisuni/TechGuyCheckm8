@@ -1,0 +1,30 @@
+name: One-shot Gaster ramdisk formatter
+
+on:
+  push:
+    branches: [runtime/gaster-ramdisk-v1]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: runtime/gaster-ramdisk-v1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Format and remove this workflow
+        run: |
+          cargo fmt --all
+          rm .github/workflows/format-gaster-ramdisk-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Format Gaster and ramdisk providers"
+          git push origin HEAD:runtime/gaster-ramdisk-v1
