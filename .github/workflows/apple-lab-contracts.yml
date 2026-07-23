@@ -52,7 +52,7 @@ jobs:
           python tools/apple-lab/tests/generate_provider_fixture.py .tmp-provider > .tmp-provider-path.txt 2>&1
           GENERATE_STATUS=$?
           if [ "$GENERATE_STATUS" -eq 0 ]; then
-            cargo run --locked -p tg-ramdisk-pack --example validate_manifest -- .tmp-provider/provider/provider-pack.runtime.json > .tmp-provider/validation.log 2>&1
+            cargo run -p tg-ramdisk-pack --example validate_manifest -- .tmp-provider/provider/provider-pack.runtime.json > .tmp-provider/validation.log 2>&1
             VALIDATE_STATUS=$?
           else
             mkdir -p .tmp-provider
