@@ -26,7 +26,8 @@ PATCH = load_module("patch_sshrd", LAB / "patch_sshrd.py")
 
 class AppleLabPipelineTests(unittest.TestCase):
     def test_pinned_sshrd_patch_is_exact_and_preserves_manifest(self) -> None:
-        source = f"header\n{PATCH.IPSW_SELECTION}\n{PATCH.CLEANUP}\nfooter\n"
+        selector = f"{PATCH.IPSW_PREFIX} | pinned-test-jq)"
+        source = f"header\n{selector}\n{PATCH.CLEANUP}\nfooter\n"
         patched = PATCH.patch(source)
         self.assertIn(PATCH.EXACT_IPSW_SELECTION, patched)
         self.assertIn("TTG_BUILD_MANIFEST_OUT", patched)
