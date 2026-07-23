@@ -11,6 +11,25 @@ from typing import Any
 
 CATALOG_SCHEMA = "tgcheckm8.ramdisk-pack.v1"
 RUNTIME_SCHEMA = "tgcheckm8.ramdisk-pack.v1"
+RUNTIME_ROLE = {
+    "gaster_executable": "gaster_executable",
+    "irecovery_executable": "i_recovery_executable",
+    "ibss": "i_bss",
+    "ibec": "i_bec",
+    "logo": "logo",
+    "ramdisk": "ramdisk",
+    "devicetree": "device_tree",
+    "trustcache": "trust_cache",
+    "kernelcache": "kernel_cache",
+}
+RUNTIME_COMMAND = {
+    "go": "go",
+    "setpicture_0x1": "set_picture_one",
+    "ramdisk": "ramdisk",
+    "devicetree": "device_tree",
+    "firmware": "firmware",
+    "bootx": "boot_x",
+}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -88,15 +107,11 @@ def boot_steps(cpid: str, roles: set[str]) -> list[dict[str, Any]]:
 def runtime_step(step: dict[str, Any]) -> dict[str, Any]:
     kind = step["kind"]
     value = step["value"]
-    key_map = {
-        "require_checkpoint": "require_checkpoint",
-        "send_asset": "send_asset",
-        "recovery_command": "recovery_command",
-        "wait_millis": "wait_millis",
-        "prove_checkpoint": "prove_checkpoint",
-    }
-    command_map = {"setpicture_0x1": "set_picture_one"}
-    return {key_map[kind]: command_map.get(value, value)}
+    if kind == "send_asset":
+        value = RUNTIME_ROLE[value]
+    elif kind == "recovery_command":
+        value = RUNTIME_COMMAND[value]
+    return {kind: value}
 
 
 def main() -> int:
@@ -130,6 +145,9 @@ def main() -> int:
         raise ValueError(f"package is missing expected roles: {sorted(missing)}")
     if len(roles) != len(assets):
         raise ValueError("provider inputs contain duplicate asset roles")
+    unknown_roles = roles - RUNTIME_ROLE.keys()
+    if unknown_roles:
+        raise ValueError(f"provider inputs contain unknown runtime roles: {sorted(unknown_roles)}")
 
     steps = boot_steps(target["cpid"], roles)
     pack_id = target["target_id"].replace("ios", "sshrd-ios")
@@ -178,16 +196,16 @@ def main() -> int:
         "hardware_transcript_sha256": None,
         "recovery_proof_sha256": None,
     }
-    runtime_assets = {
-        item["role"]: {
-            "role": item["role"],
+    runtime_assets = {}
+    for item in assets:
+        runtime_role = RUNTIME_ROLE[item["role"]]
+        runtime_assets[runtime_role] = {
+            "role": runtime_role,
             "relative_path": item["relative_path"],
             "sha256": item["sha256"],
             "byte_len": item["byte_len"],
             "redistribution_allowed": False,
         }
-        for item in assets
-    }
     runtime = {
         "schema_version": RUNTIME_SCHEMA,
         "pack_id": pack_id,
