@@ -1,23 +1,23 @@
 {
-  "build_id": "30007676416",
+  "build_id": "30007868269",
   "build_log": {
-    "byte_len": 33499,
+    "byte_len": 33301,
     "filename": "build.log",
-    "sha256": "b0caea1a45f8b2d14022b3378af6f6cd472d66aece3b07153746906d93dbab8a"
+    "sha256": "86f5e99c22180e2ceb611c682add3d397a50274705d4969cb6e80c96b1d964bd"
   },
   "builder": {
-    "commit": "795e4a55fc8d2d19fbe0f5dea1d235689789e77f",
+    "commit": "2e5de9a7ace6e98de1647b57d3e5fadbaedcd18f",
     "repository": "jaydumisuni/TechGuyCheckm8",
     "run_attempt": "1",
-    "run_id": "30007676416",
+    "run_id": "30007868269",
     "workflow": "Reviewed Apple Tools Intel Build"
   },
-  "generated_at_utc": "2026-07-23T12:38:53.468389+00:00",
+  "generated_at_utc": "2026-07-23T12:42:23.818203+00:00",
   "host": {
     "compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)\nTarget: x86_64-apple-darwin24.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
     "machine": "x86_64",
     "make": "GNU Make 3.81\nCopyright (C) 2006  Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.\nThere is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A\nPARTICULAR PURPOSE.\n\nThis program built for i386-apple-darwin11.3.0",
-    "pkg_config": "3.0.3",
+    "pkg_config": "3.0.2",
     "python": "3.14.6",
     "release": "24.6.0",
     "system": "Darwin"
@@ -43,7 +43,7 @@
       "filename": "irecovery",
       "relative_path": "bin/irecovery",
       "role": "irecovery_executable",
-      "sha256": "b1b0e6cde54f72b8b4a30679db1d532e03e5e53aba7bc336f7c082a6622b1f86",
+      "sha256": "9bdd9263ea20fd3ff13132d75b7e06a913814d04b4ac5119d2ac5ea4ae13ab72",
       "smoke_command": [
         "/Users/runner/work/TechGuyCheckm8/TechGuyCheckm8/.apple-tool-build-intel/out/bin/irecovery",
         "--help"
