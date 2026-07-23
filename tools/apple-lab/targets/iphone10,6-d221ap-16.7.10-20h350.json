@@ -1,0 +1,33 @@
+{
+  "schema_version": "tgcheckm8.apple-lab-target.v1",
+  "target_id": "iphone10,6-d221ap-ios16.7.10-20h350",
+  "product_type": "iPhone10,6",
+  "board_config": "d221ap",
+  "cpid": "8015",
+  "generation": "a11",
+  "ios_version": "16.7.10",
+  "firmware_build": "20H350",
+  "ipsw": {
+    "filename": "iPhone10,3,iPhone10,6_16.7.10_20H350_Restore.ipsw",
+    "url": "https://updates.cdn-apple.com/2024SpringFCS/fullrestores/062-47894/28C6D3CB-F9DF-4839-B3BB-E7CA850CEB80/iPhone10%2C3%2CiPhone10%2C6_16.7.10_20H350_Restore.ipsw",
+    "sha256": "da6b02e0434560b2ca7ca7a120ead3130b5bfc062425bf1edcda976fb1bbba01"
+  },
+  "source_pins": {
+    "gaster": "7fffffff38a1bed1cdc1c5bae0df70f14395129b",
+    "irecovery": "04d04f7cbaa4696504e91c1478ddd56160ed6776",
+    "sshrd": "d99ec4a19172b87d80fd9dea25eabf39291425a0",
+    "ramdisk_catalog": "97643976d142ddbdb438ceb31c4319c87f3357a8"
+  },
+  "expected_assets": [
+    "ibss",
+    "ibec",
+    "logo",
+    "ramdisk",
+    "devicetree",
+    "trustcache",
+    "kernelcache"
+  ],
+  "boot_recipe": "verygenericname.sshrd.a8-a11.v1",
+  "final_environment": "ramdisk",
+  "stable_execution_enabled": false
+}
