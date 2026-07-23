@@ -64,6 +64,7 @@ fn certificate() -> XRayAppleRouteCertificate {
         product_type: "iPhone10,6".to_owned(),
         board_config: "d221ap".to_owned(),
         cpid: "0x8015".to_owned(),
+        firmware_build: "20H350".to_owned(),
         bundle_manifest_sha256: "b".repeat(64),
         signature_verified: true,
         write_allowed: false,
@@ -110,6 +111,9 @@ fn documented_a11_route_is_ready_for_hardware_verification_only() {
     assert!(!decision.execution_authorized);
     assert!(decision.blockers.is_empty());
     assert_eq!(decision.asset_hashes.len(), 3);
+    assert!(decision
+        .required_proofs
+        .contains("firmware_build_exact_match"));
     assert!(decision
         .required_proofs
         .contains("known_good_sequence_reproduced"));
@@ -187,5 +191,26 @@ fn device_identity_must_match_exact_route() {
     assert!(decision
         .blockers
         .iter()
-        .any(|item| item == "X-Ray device is outside the exact route manifest"));
+        .any(|item| item == "X-Ray device or firmware is outside the exact route manifest"));
+}
+
+#[test]
+fn firmware_build_must_match_exact_route() {
+    let manifest = manifest();
+    let mut certificate = certificate();
+    certificate.firmware_build = "20H999".to_owned();
+    let assets = assets();
+
+    let decision = evaluate_hardware_verification(RouteVerificationRequest {
+        manifest: &manifest,
+        certificate: &certificate,
+        local_assets: &assets,
+        current_unix: 1_500,
+    });
+
+    assert!(!decision.ready_for_hardware_verification);
+    assert!(decision
+        .blockers
+        .iter()
+        .any(|item| item == "X-Ray device or firmware is outside the exact route manifest"));
 }
