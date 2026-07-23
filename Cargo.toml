@@ -27,6 +27,8 @@ members = [
     "crates/tg-syscfg-backup-vault",
     "crates/tg-syscfg-write-transport",
     "crates/tg-apple-route-reference",
+    "crates/tg-gaster-provider",
+    "crates/tg-ramdisk-pack",
 ]
 resolver = "2"
 
