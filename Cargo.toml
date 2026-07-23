@@ -29,6 +29,7 @@ members = [
     "crates/tg-apple-route-reference",
     "crates/tg-gaster-provider",
     "crates/tg-ramdisk-pack",
+    "crates/tg-ramdisk-boot",
 ]
 resolver = "2"
 
