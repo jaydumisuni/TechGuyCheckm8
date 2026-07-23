@@ -1,0 +1,205 @@
+name: Reviewed Apple Tools Build
+
+on:
+  push:
+    branches: [build/reviewed-apple-tools-v1]
+    paths:
+      - ".github/workflows/reviewed-apple-tools-build.yml"
+      - "tools/apple-build/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/reviewed-apple-tools-build.yml"
+      - "tools/apple-build/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: reviewed-apple-tools-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GASTER_COMMIT: 7fffffff38a1bed1cdc1c5bae0df70f14395129b
+  IRECOVERY_COMMIT: 04d04f7cbaa4696504e91c1478ddd56160ed6776
+  GLUE_COMMIT: da770a7687f35fbb981db4d7b47b1b032cd5c2c7
+  PLIST_COMMIT: 32428abacb909988e8e960a8845a6430b17b6a60
+  BUILD_ROOT: ${{ github.workspace }}/.apple-tool-build
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare build workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$BUILD_ROOT/src" "$BUILD_ROOT/prefix" "$BUILD_ROOT/out/bin" "$BUILD_ROOT/out/licenses"
+          {
+            echo "runner=$(sw_vers -productVersion) arch=$(uname -m)"
+            echo "xcode=$(xcodebuild -version | tr '\n' ' ')"
+            echo "clang=$(clang --version | head -1)"
+          } | tee "$BUILD_ROOT/out/build.log"
+
+      - name: Install build tools
+        run: brew install autoconf automake libtool pkg-config
+
+      - name: Build Gaster
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$BUILD_ROOT/src/gaster"
+          LOG="$BUILD_ROOT/out/build.log"
+          {
+            git clone https://github.com/0x7ff/gaster.git "$SRC"
+            git -C "$SRC" checkout --detach "$GASTER_COMMIT"
+            test "$(git -C "$SRC" rev-parse HEAD)" = "$GASTER_COMMIT"
+            test -z "$(git -C "$SRC" status --porcelain)"
+            make -C "$SRC" macos CC=clang
+            cp "$SRC/gaster" "$BUILD_ROOT/out/bin/gaster"
+          } 2>&1 | tee -a "$LOG"
+
+      - name: Build static libplist
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$BUILD_ROOT/src/libplist"
+          PREFIX="$BUILD_ROOT/prefix"
+          LOG="$BUILD_ROOT/out/build.log"
+          {
+            git clone https://github.com/libimobiledevice/libplist.git "$SRC"
+            git -C "$SRC" checkout --detach "$PLIST_COMMIT"
+            test "$(git -C "$SRC" rev-parse HEAD)" = "$PLIST_COMMIT"
+            cd "$SRC"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared --without-cython --without-tools --without-tests
+            make -j"$(sysctl -n hw.logicalcpu)"
+            make install
+          } 2>&1 | tee -a "$LOG"
+
+      - name: Build static libimobiledevice-glue
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$BUILD_ROOT/src/glue"
+          PREFIX="$BUILD_ROOT/prefix"
+          LOG="$BUILD_ROOT/out/build.log"
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+          export CPPFLAGS="-I$PREFIX/include"
+          export LDFLAGS="-L$PREFIX/lib"
+          {
+            git clone https://github.com/libimobiledevice/libimobiledevice-glue.git "$SRC"
+            git -C "$SRC" checkout --detach "$GLUE_COMMIT"
+            test "$(git -C "$SRC" rev-parse HEAD)" = "$GLUE_COMMIT"
+            cd "$SRC"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared
+            make -j"$(sysctl -n hw.logicalcpu)"
+            make install
+          } 2>&1 | tee -a "$LOG"
+
+      - name: Build static iRecovery tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$BUILD_ROOT/src/libirecovery"
+          PREFIX="$BUILD_ROOT/prefix"
+          LOG="$BUILD_ROOT/out/build.log"
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+          export CPPFLAGS="-I$PREFIX/include"
+          export LDFLAGS="-L$PREFIX/lib"
+          {
+            git clone https://github.com/libimobiledevice/libirecovery.git "$SRC"
+            git -C "$SRC" checkout --detach "$IRECOVERY_COMMIT"
+            test "$(git -C "$SRC" rev-parse HEAD)" = "$IRECOVERY_COMMIT"
+            cd "$SRC"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared --with-tools=yes --with-iokit=yes --without-udev
+            make -j"$(sysctl -n hw.logicalcpu)"
+            cp tools/irecovery "$BUILD_ROOT/out/bin/irecovery"
+          } 2>&1 | tee -a "$LOG"
+
+      - name: Review, receipt and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$BUILD_ROOT/out"
+          SRC="$BUILD_ROOT/src"
+          PREFIX="$BUILD_ROOT/prefix"
+          LOG="$OUT/build.log"
+          chmod 0755 "$OUT/bin/gaster" "$OUT/bin/irecovery"
+          cp "$SRC/gaster/LICENSE" "$OUT/licenses/GASTER-APACHE-2.0.txt"
+          cp "$SRC/libirecovery/COPYING" "$OUT/licenses/LIBIRECOVERY-LGPL-2.1.txt"
+          cp "$SRC/glue/COPYING" "$OUT/licenses/LIBIMOBILEDEVICE-GLUE-LGPL-2.1.txt"
+          cp "$SRC/libplist/COPYING" "$OUT/licenses/LIBPLIST-LGPL-2.1.txt"
+          {
+            echo "--- gaster dependencies ---"
+            otool -L "$OUT/bin/gaster"
+            echo "--- irecovery dependencies ---"
+            otool -L "$OUT/bin/irecovery"
+          } 2>&1 | tee -a "$LOG"
+          if otool -L "$OUT/bin/gaster" | grep -E "$PREFIX|/opt/homebrew/Cellar|/usr/local/Cellar"; then
+            echo "gaster contains a non-relocatable build dependency" >&2
+            exit 1
+          fi
+          if otool -L "$OUT/bin/irecovery" | grep -E "$PREFIX|/opt/homebrew/Cellar|/usr/local/Cellar"; then
+            echo "irecovery contains a non-relocatable build dependency" >&2
+            exit 1
+          fi
+          python3 tools/apple-build/make_receipt.py \
+            --output-dir "$OUT" \
+            --gaster "$OUT/bin/gaster" \
+            --irecovery "$OUT/bin/irecovery" \
+            --gaster-commit "$GASTER_COMMIT" \
+            --irecovery-commit "$IRECOVERY_COMMIT" \
+            --glue-commit "$GLUE_COMMIT" \
+            --plist-commit "$PLIST_COMMIT" \
+            --build-log "$LOG"
+          cd "$OUT"
+          shasum -a 256 -c SHA256SUMS
+          python3 -m json.tool build-receipt.json >/dev/null
+          tar -czf ../tgcheckm8-apple-tools-macos-$(uname -m).tar.gz .
+
+      - name: Upload reviewed tools and receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: tgcheckm8-apple-tools-macos
+          path: |
+            .apple-tool-build/out/**
+            .apple-tool-build/tgcheckm8-apple-tools-macos-*.tar.gz
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish receipt summary
+        if: success() && github.event_name == 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          OUT="$BUILD_ROOT/out"
+          GASTER_SHA=$(python3 -c 'import json; d=json.load(open("'$OUT'/build-receipt.json")); print(next(x["sha256"] for x in d["outputs"] if x["role"]=="gaster_executable"))')
+          IRECOVERY_SHA=$(python3 -c 'import json; d=json.load(open("'$OUT'/build-receipt.json")); print(next(x["sha256"] for x in d["outputs"] if x["role"]=="irecovery_executable"))')
+          GASTER_SIZE=$(python3 -c 'import json; d=json.load(open("'$OUT'/build-receipt.json")); print(next(x["byte_len"] for x in d["outputs"] if x["role"]=="gaster_executable"))')
+          IRECOVERY_SIZE=$(python3 -c 'import json; d=json.load(open("'$OUT'/build-receipt.json")); print(next(x["byte_len"] for x in d["outputs"] if x["role"]=="irecovery_executable"))')
+          BODY=$(cat <<EOF
+          <!-- reviewed-apple-tools-receipt -->
+          ## Reviewed Apple tools build receipt
+
+          - Runner: macOS $(sw_vers -productVersion), $(uname -m)
+          - Gaster SHA-256: \`$GASTER_SHA\` ($GASTER_SIZE bytes)
+          - iRecovery SHA-256: \`$IRECOVERY_SHA\` ($IRECOVERY_SIZE bytes)
+          - Source pins: Gaster \`$GASTER_COMMIT\`, iRecovery \`$IRECOVERY_COMMIT\`, glue \`$GLUE_COMMIT\`, libplist \`$PLIST_COMMIT\`
+          - Static project-dependency check: PASS
+          - Smoke tests: PASS
+          - Device operation executed: no
+          - Artifact: \`tgcheckm8-apple-tools-macos\`
+          EOF
+          )
+          gh pr comment "$PR_NUMBER" --body "$BODY" --edit-last --create-if-none
