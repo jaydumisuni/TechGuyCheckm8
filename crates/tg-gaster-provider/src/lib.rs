@@ -272,14 +272,15 @@ pub fn verify_pwnd_reconnect(
     {
         blockers.push("Gaster run receipt scope mismatch".to_owned());
     }
-    if pwn_receipt.action != GasterAction::Pwn
-        || reset_receipt.action != GasterAction::Reset
-    {
+    if pwn_receipt.action != GasterAction::Pwn || reset_receipt.action != GasterAction::Reset {
         blockers.push("Gaster actions were not executed in the required sequence".to_owned());
     }
     for receipt in [pwn_receipt, reset_receipt] {
         if !receipt.process_success || !receipt.cleanup_verified {
-            blockers.push(format!("{:?} process or cleanup was not verified", receipt.action));
+            blockers.push(format!(
+                "{:?} process or cleanup was not verified",
+                receipt.action
+            ));
         }
         if receipt.executable_sha256 != plan.executable_sha256 {
             blockers.push("Gaster executable hash changed between plan and execution".to_owned());

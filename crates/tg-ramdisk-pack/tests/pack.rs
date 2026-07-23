@@ -1,16 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use tg_apple_route_reference::{
-    AppleGeneration, AppleRouteReferenceManifest, PwnProvider, PwnSourcePin,
-    ReferenceCatalog, ReferenceClassification, RouteAssetPolicy, RouteEnvironment,
-    APPLE_ROUTE_REFERENCE_VERSION,
+    AppleGeneration, AppleRouteReferenceManifest, PwnProvider, PwnSourcePin, ReferenceCatalog,
+    ReferenceClassification, RouteAssetPolicy, RouteEnvironment, APPLE_ROUTE_REFERENCE_VERSION,
 };
 use tg_contracts::Maturity;
 use tg_ramdisk_pack::{
     bind_to_route_reference, classify_and_hash_asset, required_assets, sshrd_boot_steps,
-    validate_pack, AssetRole, BootStep, FixedRecoveryCommand, RamdiskProviderPack,
-    SourceReference, RAMDISK_PACK_VERSION, SSHRD_LICENCE, SSHRD_SOURCE_COMMIT,
-    SSHRD_SOURCE_REPOSITORY,
+    validate_pack, AssetRole, BootStep, FixedRecoveryCommand, RamdiskProviderPack, SourceReference,
+    RAMDISK_PACK_VERSION, SSHRD_LICENCE, SSHRD_SOURCE_COMMIT, SSHRD_SOURCE_REPOSITORY,
 };
 
 fn sources() -> Vec<SourceReference> {
@@ -117,8 +115,8 @@ fn route() -> AppleRouteReferenceManifest {
 
 #[test]
 fn a11_known_recipe_contains_go_and_fixed_order() {
-    let steps = sshrd_boot_steps("0x8015", true, true, RouteEnvironment::Ramdisk)
-        .expect("known steps");
+    let steps =
+        sshrd_boot_steps("0x8015", true, true, RouteEnvironment::Ramdisk).expect("known steps");
     assert!(steps.contains(&BootStep::RecoveryCommand(FixedRecoveryCommand::Go)));
     assert_eq!(
         steps.first(),
@@ -137,8 +135,8 @@ fn a11_known_recipe_contains_go_and_fixed_order() {
 
 #[test]
 fn a9_recipe_does_not_invent_go_command() {
-    let steps = sshrd_boot_steps("8000", false, false, RouteEnvironment::Ramdisk)
-        .expect("known steps");
+    let steps =
+        sshrd_boot_steps("8000", false, false, RouteEnvironment::Ramdisk).expect("known steps");
     assert!(!steps.contains(&BootStep::RecoveryCommand(FixedRecoveryCommand::Go)));
 }
 
@@ -147,7 +145,11 @@ fn complete_pack_binds_to_exact_route_without_authorizing_execution() {
     let pack = pack();
     assert!(validate_pack(&pack).is_ok());
     let decision = bind_to_route_reference(&pack, &route());
-    assert!(decision.ready_for_hardware_verification, "{:?}", decision.blockers);
+    assert!(
+        decision.ready_for_hardware_verification,
+        "{:?}",
+        decision.blockers
+    );
     assert!(!decision.execution_authorized);
     assert!(decision.required_assets.contains(&AssetRole::Ramdisk));
 }

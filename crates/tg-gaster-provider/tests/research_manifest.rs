@@ -1,6 +1,6 @@
-use tg_gaster_provider::{build_pwn_plan, GasterPlanRequest, GasterProviderManifest};
 use tg_apple_observe::{LockedDeviceIdentity, ObservationSource, ObservedAppleDevice};
 use tg_contracts::DeviceMode;
+use tg_gaster_provider::{build_pwn_plan, GasterPlanRequest, GasterProviderManifest};
 use uuid::Uuid;
 
 #[test]

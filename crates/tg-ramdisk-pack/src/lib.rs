@@ -8,9 +8,7 @@ use std::path::{Component, Path};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tg_apple_route_reference::{
-    AppleRouteReferenceManifest, PwnProvider, RouteEnvironment,
-};
+use tg_apple_route_reference::{AppleRouteReferenceManifest, PwnProvider, RouteEnvironment};
 use tg_contracts::Maturity;
 
 pub const RAMDISK_PACK_VERSION: &str = "tgcheckm8.ramdisk-pack.v1";
@@ -150,9 +148,7 @@ pub fn sshrd_boot_steps(
         BootStep::SendAsset(AssetRole::KernelCache),
         BootStep::RecoveryCommand(FixedRecoveryCommand::BootX),
         BootStep::ProveCheckpoint(match final_environment {
-            RouteEnvironment::Ramdisk | RouteEnvironment::Jailbreak => {
-                BootCheckpoint::RamdiskReady
-            }
+            RouteEnvironment::Ramdisk | RouteEnvironment::Jailbreak => BootCheckpoint::RamdiskReady,
             RouteEnvironment::PurpleDiags => BootCheckpoint::PurpleDiagnosticReady,
         }),
     ]);
@@ -214,7 +210,11 @@ pub fn validate_pack(pack: &RamdiskProviderPack) -> Result<(), RamdiskPackError>
         if pack.hardware_transcript_sha256.is_none() || pack.recovery_proof_sha256.is_none() {
             return Err(RamdiskPackError::StableEvidenceMissing);
         }
-        validate_sha256(pack.hardware_transcript_sha256.as_deref().unwrap_or_default())?;
+        validate_sha256(
+            pack.hardware_transcript_sha256
+                .as_deref()
+                .unwrap_or_default(),
+        )?;
         validate_sha256(pack.recovery_proof_sha256.as_deref().unwrap_or_default())?;
     }
     Ok(())
