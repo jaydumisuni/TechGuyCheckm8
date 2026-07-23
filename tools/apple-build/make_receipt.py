@@ -70,6 +70,7 @@ def main() -> int:
     parser.add_argument("--gaster-commit", required=True)
     parser.add_argument("--irecovery-commit", required=True)
     parser.add_argument("--glue-commit", required=True)
+    parser.add_argument("--plist-commit", required=True)
     parser.add_argument("--build-log", type=Path, required=True)
     args = parser.parse_args()
 
@@ -119,6 +120,12 @@ def main() -> int:
                 "role": "libimobiledevice_glue",
                 "repository": "https://github.com/libimobiledevice/libimobiledevice-glue",
                 "commit": args.glue_commit,
+                "licence": "LGPL-2.1-or-later",
+            },
+            {
+                "role": "libplist",
+                "repository": "https://github.com/libimobiledevice/libplist",
+                "commit": args.plist_commit,
                 "licence": "LGPL-2.1-or-later",
             },
         ],
