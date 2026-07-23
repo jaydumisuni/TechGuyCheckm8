@@ -14,8 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 env:
   GASTER_COMMIT: 7fffffff38a1bed1cdc1c5bae0df70f14395129b
@@ -129,23 +128,3 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 90
-
-      - name: Persist Intel receipt
-        if: success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        shell: bash
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          set -euo pipefail
-          git fetch origin "$HEAD_REF"
-          git checkout "$HEAD_REF"
-          mkdir -p build-receipts
-          cp "$BUILD_ROOT/out/build-receipt.json" build-receipts/apple-tools-macos-x86_64.json
-          cp "$BUILD_ROOT/out/SHA256SUMS" build-receipts/apple-tools-macos-x86_64.SHA256SUMS
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build-receipts/apple-tools-macos-x86_64.json build-receipts/apple-tools-macos-x86_64.SHA256SUMS
-          if ! git diff --cached --quiet; then
-            git commit -m "Record reviewed Intel macOS Apple tool hashes"
-            git push origin "HEAD:$HEAD_REF"
-          fi
