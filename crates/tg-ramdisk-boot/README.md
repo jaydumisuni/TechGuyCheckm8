@@ -11,6 +11,14 @@ irecovery -c <fixed command from typed enum>
 
 The command enum is limited to `go`, `setpicture 0x1`, `ramdisk`, `devicetree`, `firmware`, and `bootx`. No caller-supplied iBoot command or shell string is accepted.
 
+## Source pin
+
+- repository: `https://github.com/libimobiledevice/libirecovery`
+- commit: `04d04f7cbaa4696504e91c1478ddd56160ed6776`
+- licence: LGPL-2.1-or-later
+
+The locally built or packaged executable still requires its own SHA-256 and build receipt.
+
 ## Start gate
 
 The runtime requires:
