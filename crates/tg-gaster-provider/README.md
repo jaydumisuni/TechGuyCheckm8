@@ -31,4 +31,8 @@ The crate does not choose or send ramdisk assets. That responsibility belongs to
 - commit: `7fffffff38a1bed1cdc1c5bae0df70f14395129b`
 - licence: Apache-2.0
 
+## Controller handoff
+
+The provider does not retry itself. A retry, cancellation, or recovery decision belongs to the TGCHECKM8 controller and must create a new supervised run receipt under the same locked device session. A failed or timed-out process never advances the ramdisk boot plan.
+
 Stable execution remains blocked until an exact built executable hash and per-CPID hardware proof are recorded.
