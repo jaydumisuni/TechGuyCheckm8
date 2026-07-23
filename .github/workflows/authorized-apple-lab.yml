@@ -1,0 +1,139 @@
+name: Authorised Apple Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_build_run_id:
+        description: Successful Reviewed Apple Tools workflow run ID
+        required: true
+        type: string
+      reviewed_artifact_name:
+        description: Reviewed tools artifact matching the lab Mac architecture
+        required: true
+        default: tgcheckm8-apple-tools-macos
+        type: string
+      target_path:
+        description: Exact tracked target manifest
+        required: true
+        default: tools/apple-lab/targets/iphone10,6-d221ap-16.7.10-20h350.json
+        type: string
+      confirm_authorized_device:
+        description: Confirm the connected device is authorised for this service operation
+        required: true
+        default: "no"
+        type: choice
+        options: ["no", "yes"]
+      leave_ramdisk_running:
+        description: Skip normal-boot recovery proof and leave the ramdisk running
+        required: true
+        default: "no"
+        type: choice
+        options: ["no", "yes"]
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  LAB_ROOT: ${{ github.workspace }}/.authorized-apple-lab
+
+jobs:
+  exact-a11-route:
+    if: inputs.confirm_authorized_device == 'yes'
+    runs-on: [self-hosted, macOS, ttg-apple-lab]
+    environment: apple-lab
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enforce protected authorisation
+        shell: bash
+        env:
+          TTG_AUTHORIZATION_TICKET: ${{ secrets.TTG_AUTHORIZATION_TICKET }}
+        run: |
+          set -euo pipefail
+          [[ -n "$TTG_AUTHORIZATION_TICKET" ]] || {
+            echo "The protected apple-lab environment must provide TTG_AUTHORIZATION_TICKET." >&2
+            exit 2
+          }
+          mkdir -p "$LAB_ROOT/download" "$LAB_ROOT/reviewed-tools" "$LAB_ROOT/prepared" "$LAB_ROOT/evidence"
+
+      - name: Download reviewed tools
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.reviewed_build_run_id }}
+          name: ${{ inputs.reviewed_artifact_name }}
+          path: ${{ env.LAB_ROOT }}/download
+
+      - name: Extract and verify reviewed build receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE=$(find "$LAB_ROOT/download" -type f -name 'tgcheckm8-apple-tools-macos-*.tar.gz' -print -quit)
+          [[ -n "$ARCHIVE" ]] || { echo "Reviewed tool archive was not found." >&2; exit 3; }
+          tar -xzf "$ARCHIVE" -C "$LAB_ROOT/reviewed-tools"
+          cd "$LAB_ROOT/reviewed-tools"
+          shasum -a 256 -c SHA256SUMS
+          python3 -m json.tool build-receipt.json >/dev/null
+          test "$(uname -m)" = "$(python3 -c 'import json; print(json.load(open("build-receipt.json"))["host"]["machine"])')"
+
+      - name: Generate exact SSHRD assets and provider manifest
+        shell: bash
+        env:
+          TTG_AUTHORIZED_DEVICE: "YES"
+          TTG_AUTHORIZATION_TICKET: ${{ secrets.TTG_AUTHORIZATION_TICKET }}
+        run: |
+          set -euo pipefail
+          tools/apple-lab/prepare_exact_sshrd.sh \
+            "${{ inputs.target_path }}" \
+            "$LAB_ROOT/reviewed-tools" \
+            "$LAB_ROOT/prepared"
+
+      - name: Execute exact sequence and collect proof
+        shell: bash
+        env:
+          TTG_AUTHORIZED_DEVICE: "YES"
+          TTG_AUTHORIZATION_TICKET: ${{ secrets.TTG_AUTHORIZATION_TICKET }}
+          TTG_LEAVE_RAMDISK: ${{ inputs.leave_ramdisk_running == 'yes' && 'YES' || 'NO' }}
+        run: |
+          set -euo pipefail
+          tools/apple-lab/execute_exact_sequence.sh \
+            "${{ inputs.target_path }}" \
+            "$LAB_ROOT/reviewed-tools" \
+            "$LAB_ROOT/prepared" \
+            "$LAB_ROOT/evidence"
+
+      - name: Validate collected proof
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROOF=$(find "$LAB_ROOT/evidence" -type f -name hardware-proof.json -print -quit)
+          [[ -n "$PROOF" ]] || { echo "Hardware proof is missing." >&2; exit 4; }
+          python3 - "$PROOF" "${{ inputs.leave_ramdisk_running }}" <<'PY'
+          import json, sys
+          proof=json.load(open(sys.argv[1], encoding='utf-8'))
+          if not proof.get('ramdisk_ssh_verified'):
+              raise SystemExit('ramdisk SSH proof is missing')
+          if sys.argv[2] == 'no' and not proof.get('recovery_verified'):
+              raise SystemExit('normal-boot recovery proof is missing')
+          if proof.get('stable_promotion_authorized'):
+              raise SystemExit('hardware workflow must not authorize Stable promotion')
+          print('Hardware and recovery evidence passed the workflow gate.')
+          PY
+
+      - name: Upload private lab evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authorised-apple-lab-evidence-${{ github.run_id }}
+          path: |
+            .authorized-apple-lab/prepared/evidence/**
+            .authorized-apple-lab/prepared/package-inventory.json
+            .authorized-apple-lab/prepared/provider/**
+            .authorized-apple-lab/prepared/sshrd-build-receipt.json
+            .authorized-apple-lab/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
