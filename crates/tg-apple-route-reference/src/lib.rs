@@ -196,7 +196,10 @@ pub fn validate_manifest(manifest: &AppleRouteReferenceManifest) -> Result<(), R
         _ => return Err(RouteReferenceError::GenerationProviderMismatch),
     }
     if manifest.classification == ReferenceClassification::DocumentedKnownGood
-        && manifest.maturity < Maturity::ContractValid
+        && matches!(
+            manifest.maturity,
+            Maturity::Discovered | Maturity::Imported
+        )
     {
         return Err(RouteReferenceError::InsufficientReferenceMaturity);
     }
