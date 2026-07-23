@@ -371,7 +371,11 @@ pub fn execute_current_process_step(
             "iRecovery step {} failed or did not clean up",
             runtime.next_step
         ));
-        return Err(RamdiskBootError::ProcessStepFailed(receipt));
+        return Err(RamdiskBootError::ProcessStepFailed {
+            step_index: receipt.step_index,
+            status_code: receipt.status_code,
+            cleanup_verified: receipt.cleanup_verified,
+        });
     }
     runtime.process_receipts.push(receipt.clone());
     runtime.next_step += 1;
@@ -677,8 +681,14 @@ pub enum RamdiskBootError {
     AssetHashMismatch(AssetRole),
     #[error("expected directory: {0}")]
     ExpectedDirectory(PathBuf),
-    #[error("iRecovery process step failed: {0:?}")]
-    ProcessStepFailed(BootProcessReceipt),
+    #[error(
+    "iRecovery process step {step_index} failed: status={status_code:?}, cleanup={cleanup_verified}"
+)]
+    ProcessStepFailed {
+        step_index: usize,
+        status_code: Option<i32>,
+        cleanup_verified: bool,
+    },
     #[error("invalid CPID: {0}")]
     InvalidCpid(String),
     #[error("invalid SHA-256: {0}")]
