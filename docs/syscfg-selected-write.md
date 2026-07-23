@@ -59,3 +59,5 @@ A field can be enabled only in a separate reviewed provider manifest after:
 ## Progress handoff
 
 After merge, the live state must be recorded in `jaydumisuni/TTG-progress` under `projects/tgcheckm8/` using `CURRENT.md`, `DONE.md`, `NEXT.md`, and `BLOCKERS.md`. That record must distinguish the completed simulation-tested mechanism from the still-blocked production field and physical-device promotion work.
+
+Following the TTG-progress assurance rule, any future change to a proof or evidence workflow must include its contract proof in the same pull request.
