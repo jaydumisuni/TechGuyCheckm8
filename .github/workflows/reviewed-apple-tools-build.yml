@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: reviewed-apple-tools-${{ github.ref }}
@@ -72,6 +73,7 @@ jobs:
           LOG="$BUILD_ROOT/out/build.log"
           {
             git clone https://github.com/libimobiledevice/libplist.git "$SRC"
+            git -C "$SRC/libplist" status >/dev/null 2>&1 || true
             git -C "$SRC" checkout --detach "$PLIST_COMMIT"
             test "$(git -C "$SRC" rev-parse HEAD)" = "$PLIST_COMMIT"
             cd "$SRC"
@@ -167,3 +169,32 @@ jobs:
             .apple-tool-build/tgcheckm8-apple-tools-macos-*.tar.gz
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Publish receipt summary
+        if: success() && github.event_name == 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          OUT="$BUILD_ROOT/out"
+          GASTER_SHA=$(python3 -c 'import json; d=json.load(open("'$OUT'/build-receipt.json")); print(next(x["sha256"] for x in d["outputs"] if x["role"]=="gaster_executable"))')
+          IRECOVERY_SHA=$(python3 -c 'import json; d=json.load(open("'$OUT'/build-receipt.json")); print(next(x["sha256"] for x in d["outputs"] if x["role"]=="irecovery_executable"))')
+          GASTER_SIZE=$(python3 -c 'import json; d=json.load(open("'$OUT'/build-receipt.json")); print(next(x["byte_len"] for x in d["outputs"] if x["role"]=="gaster_executable"))')
+          IRECOVERY_SIZE=$(python3 -c 'import json; d=json.load(open("'$OUT'/build-receipt.json")); print(next(x["byte_len"] for x in d["outputs"] if x["role"]=="irecovery_executable"))')
+          BODY=$(cat <<EOF
+          <!-- reviewed-apple-tools-receipt -->
+          ## Reviewed Apple tools build receipt
+
+          - Runner: macOS $(sw_vers -productVersion), $(uname -m)
+          - Gaster SHA-256: \`$GASTER_SHA\` ($GASTER_SIZE bytes)
+          - iRecovery SHA-256: \`$IRECOVERY_SHA\` ($IRECOVERY_SIZE bytes)
+          - Source pins: Gaster \`$GASTER_COMMIT\`, iRecovery \`$IRECOVERY_COMMIT\`, glue \`$GLUE_COMMIT\`, libplist \`$PLIST_COMMIT\`
+          - Static project-dependency check: PASS
+          - Smoke tests: PASS
+          - Device operation executed: no
+          - Artifact: \`tgcheckm8-apple-tools-macos\`
+          EOF
+          )
+          gh pr comment "$PR_NUMBER" --body "$BODY" --edit-last --create-if-none
