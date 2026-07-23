@@ -1,0 +1,90 @@
+{
+  "build_id": "30007090428",
+  "build_log": {
+    "byte_len": 33541,
+    "filename": "build.log",
+    "sha256": "4f6cbcc1332073fe4a56ac6428cb7d3be63fe2e4d15e61076e662a1e268dc952"
+  },
+  "builder": {
+    "commit": "66ad6f92551a4383189d5743ab9f524a124c7f2d",
+    "repository": "jaydumisuni/TechGuyCheckm8",
+    "run_attempt": "1",
+    "run_id": "30007090428",
+    "workflow": "Reviewed Apple Tools Intel Build"
+  },
+  "generated_at_utc": "2026-07-23T12:29:30.073264+00:00",
+  "host": {
+    "compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)\nTarget: x86_64-apple-darwin24.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+    "machine": "x86_64",
+    "make": "GNU Make 3.81\nCopyright (C) 2006  Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.\nThere is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A\nPARTICULAR PURPOSE.\n\nThis program built for i386-apple-darwin11.3.0",
+    "pkg_config": "3.0.3",
+    "python": "3.14.6",
+    "release": "24.6.0",
+    "system": "Darwin"
+  },
+  "outputs": [
+    {
+      "byte_len": 34248,
+      "file_description": "/Users/runner/work/TechGuyCheckm8/TechGuyCheckm8/.apple-tool-build-intel/out/bin/gaster: Mach-O 64-bit executable x86_64",
+      "filename": "gaster",
+      "relative_path": "bin/gaster",
+      "role": "gaster_executable",
+      "sha256": "64985592a47023c49ee54f56ea25e9d6f84c8d29a5e4c651c52d7ba54d27f6b1",
+      "smoke_command": [
+        "/Users/runner/work/TechGuyCheckm8/TechGuyCheckm8/.apple-tool-build-intel/out/bin/gaster"
+      ],
+      "smoke_output_excerpt": "usb_timeout: 5\nusb_abort_timeout_min: 0\nUsage: env /Users/runner/work/TechGuyCheckm8/TechGuyCheckm8/.apple-tool-build-intel/out/bin/gaster options\nenv:\nUSB_TIMEOUT - USB timeout in ms\nUSB_ABORT_TIMEOUT_MIN - USB abort timeout minimum in ms\noptions:\nreset - Reset DFU state\npwn - Put the device in pwned DFU mode\ndecrypt src dst - Decrypt file using GID0 AES key\ndecrypt_kbag kbag - Decrypt KBAG using GID0 AES key\n",
+      "smoke_output_sha256": "6998b99e593e0257aac30a06a20c9c0a567bf20e6137ea6436ba0a85af85f283",
+      "smoke_status_code": 1
+    },
+    {
+      "byte_len": 90904,
+      "file_description": "/Users/runner/work/TechGuyCheckm8/TechGuyCheckm8/.apple-tool-build-intel/out/bin/irecovery: Mach-O 64-bit executable x86_64",
+      "filename": "irecovery",
+      "relative_path": "bin/irecovery",
+      "role": "irecovery_executable",
+      "sha256": "2b5d18587d5523eed393164089e0fbbbb43a5975e3a012f3d2db1178b6d037cc",
+      "smoke_command": [
+        "/Users/runner/work/TechGuyCheckm8/TechGuyCheckm8/.apple-tool-build-intel/out/bin/irecovery",
+        "--help"
+      ],
+      "smoke_output_excerpt": "Usage: irecovery [OPTIONS]\n\nInteract with an iOS device in DFU or recovery mode.\n\nOPTIONS:\n  -i, --ecid ECID\tconnect to specific device by its ECID\n  -c, --command CMD\trun CMD on device\n  -m, --mode\t\tprint current device mode\n  -f, --file FILE\tsend file to device\n  -k, --payload FILE\tsend limera1n usb exploit payload from FILE\n  -r, --reset\t\treset client\n  -n, --normal\t\treboot device into normal mode (exit recovery loop)\n  -e, --script FILE\texecutes recovery script from FILE\n  -s, --shell\t\tstart an interactive shell\n  -q, --query\t\tquery device info\n  -a, --devices\t\tlist information for all known devices\n  -v, --verbose\t\tenable verbose output, repeat for higher verbosity\n  -h, --help\t\tprints this usage information\n  -V, --version\t\tprints version information\n\nHomepage:    <https://libimobiledevice.org>\nBug Reports: <https://github.com/libimobiledevice/libirecovery/issues>\n",
+      "smoke_output_sha256": "9bab6a51b4990240859ade7156061ac457e9261c4f5e4a6bbd6efea086489cd9",
+      "smoke_status_code": 0
+    }
+  ],
+  "review_checks": {
+    "binaries_nonempty": true,
+    "device_operation_executed": false,
+    "sha256_recorded": true,
+    "smoke_tests_executed": true,
+    "source_commits_exact": true
+  },
+  "schema_version": "tgcheckm8.apple-tool-build-receipt.v1",
+  "source_pins": [
+    {
+      "commit": "7fffffff38a1bed1cdc1c5bae0df70f14395129b",
+      "licence": "Apache-2.0",
+      "repository": "https://github.com/0x7ff/gaster",
+      "role": "gaster"
+    },
+    {
+      "commit": "04d04f7cbaa4696504e91c1478ddd56160ed6776",
+      "licence": "LGPL-2.1-or-later",
+      "repository": "https://github.com/libimobiledevice/libirecovery",
+      "role": "irecovery"
+    },
+    {
+      "commit": "da770a7687f35fbb981db4d7b47b1b032cd5c2c7",
+      "licence": "LGPL-2.1-or-later",
+      "repository": "https://github.com/libimobiledevice/libimobiledevice-glue",
+      "role": "libimobiledevice_glue"
+    },
+    {
+      "commit": "32428abacb909988e8e960a8845a6430b17b6a60",
+      "licence": "LGPL-2.1-or-later",
+      "repository": "https://github.com/libimobiledevice/libplist",
+      "role": "libplist"
+    }
+  ]
+}
