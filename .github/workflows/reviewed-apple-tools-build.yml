@@ -159,14 +159,14 @@ jobs:
           tar -czf ../tgcheckm8-apple-tools-macos-$(uname -m).tar.gz .
 
       - name: Upload reviewed tools and receipt
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tgcheckm8-apple-tools-macos
           path: |
             .apple-tool-build/out/**
             .apple-tool-build/tgcheckm8-apple-tools-macos-*.tar.gz
-          if-no-files-found: warn
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 90
 
       - name: Publish receipt summary
