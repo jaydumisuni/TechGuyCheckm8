@@ -126,6 +126,7 @@ jobs:
           path: |
             .apple-tool-build-intel/out/**
             .apple-tool-build-intel/tgcheckm8-apple-tools-macos-x86_64.tar.gz
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 90
 
