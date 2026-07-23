@@ -1,0 +1,22 @@
+[package]
+name = "tg-ramdisk-boot"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+tg-contracts.workspace = true
+tg-apple-observe = { path = "../tg-apple-observe" }
+tg-gaster-provider = { path = "../tg-gaster-provider" }
+tg-process = { path = "../tg-process" }
+tg-ramdisk-pack = { path = "../tg-ramdisk-pack" }
+
+[dev-dependencies]
+serde_json.workspace = true
+tg-apple-route-reference = { path = "../tg-apple-route-reference" }
