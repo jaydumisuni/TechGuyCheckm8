@@ -6,6 +6,11 @@ on:
     paths:
       - ".github/workflows/reviewed-apple-tools-build.yml"
       - "tools/apple-build/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/reviewed-apple-tools-build.yml"
+      - "tools/apple-build/**"
   workflow_dispatch:
 
 permissions:
