@@ -19,3 +19,4 @@ tg-ramdisk-pack = { path = "../tg-ramdisk-pack" }
 
 [dev-dependencies]
 serde_json.workspace = true
+tg-apple-route-reference = { path = "../tg-apple-route-reference" }
