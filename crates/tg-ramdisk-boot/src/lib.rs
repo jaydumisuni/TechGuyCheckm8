@@ -16,8 +16,7 @@ use tg_contracts::{DeviceMode, Maturity, Permission};
 use tg_gaster_provider::GasterFinalProof;
 use tg_process::{run_supervised, ProcessPolicy, ProcessSpec, SupervisedOutcome};
 use tg_ramdisk_pack::{
-    validate_pack, AssetRole, BootCheckpoint, BootStep, FixedRecoveryCommand,
-    RamdiskProviderPack,
+    validate_pack, AssetRole, BootCheckpoint, BootStep, FixedRecoveryCommand, RamdiskProviderPack,
 };
 use uuid::Uuid;
 
@@ -107,14 +106,22 @@ pub struct RamdiskBootRuntime {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NextInstruction {
-    ProcessRequired { step_index: usize, summary: String },
-    WaitRequired { step_index: usize, millis: u64 },
+    ProcessRequired {
+        step_index: usize,
+        summary: String,
+    },
+    WaitRequired {
+        step_index: usize,
+        millis: u64,
+    },
     CheckpointRequired {
         step_index: usize,
         checkpoint: BootCheckpoint,
     },
     Complete,
-    Failed { reason: String },
+    Failed {
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -185,7 +192,9 @@ pub fn validate_irecovery_manifest(
     Ok(())
 }
 
-pub fn start_runtime(request: BootStartRequest<'_>) -> Result<RamdiskBootRuntime, RamdiskBootError> {
+pub fn start_runtime(
+    request: BootStartRequest<'_>,
+) -> Result<RamdiskBootRuntime, RamdiskBootError> {
     validate_pack(request.pack)?;
     validate_irecovery_manifest(request.irecovery_manifest, request.policy_profile)?;
     if !request.authorized_device_service || !request.explicit_operator_authorization {
@@ -259,7 +268,10 @@ pub fn start_runtime(request: BootStartRequest<'_>) -> Result<RamdiskBootRuntime
     })
 }
 
-pub fn next_instruction(runtime: &RamdiskBootRuntime, pack: &RamdiskProviderPack) -> NextInstruction {
+pub fn next_instruction(
+    runtime: &RamdiskBootRuntime,
+    pack: &RamdiskProviderPack,
+) -> NextInstruction {
     if runtime.failed {
         return NextInstruction::Failed {
             reason: runtime

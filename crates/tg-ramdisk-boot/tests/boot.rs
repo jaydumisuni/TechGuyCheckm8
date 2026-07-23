@@ -12,13 +12,12 @@ use tg_ramdisk_boot::{
     acknowledge_checkpoint, acknowledge_wait, execute_current_process_step, finalize_runtime,
     next_instruction, required_permissions, sha256_file, start_runtime, BootInstallation,
     BootStartRequest, CheckpointEvidence, IRecoveryProviderManifest, NextInstruction,
-    IRECOVERY_LICENCE, IRECOVERY_SOURCE_COMMIT, IRECOVERY_SOURCE_REPOSITORY,
-    RAMDISK_BOOT_VERSION,
+    IRECOVERY_LICENCE, IRECOVERY_SOURCE_COMMIT, IRECOVERY_SOURCE_REPOSITORY, RAMDISK_BOOT_VERSION,
 };
 use tg_ramdisk_pack::{
     classify_and_hash_asset, sshrd_boot_steps, AssetRecord, AssetRole, BootCheckpoint,
-    RamdiskProviderPack, SourceReference, RAMDISK_PACK_VERSION, SSHRD_LICENCE,
-    SSHRD_SOURCE_COMMIT, SSHRD_SOURCE_REPOSITORY,
+    RamdiskProviderPack, SourceReference, RAMDISK_PACK_VERSION, SSHRD_LICENCE, SSHRD_SOURCE_COMMIT,
+    SSHRD_SOURCE_REPOSITORY,
 };
 use uuid::Uuid;
 
@@ -157,7 +156,11 @@ fn fixture() -> Fixture {
 #[cfg(unix)]
 fn process_policy(fixture: &Fixture) -> ProcessPolicy {
     ProcessPolicy::new(
-        vec![fixture.irecovery.parent().expect("bin parent").to_path_buf()],
+        vec![fixture
+            .irecovery
+            .parent()
+            .expect("bin parent")
+            .to_path_buf()],
         fixture.root.clone(),
         Duration::from_secs(5),
         Duration::from_millis(10),
@@ -238,9 +241,11 @@ fn complete_known_recipe_runs_fixed_commands_and_proves_environment() {
 
     let proof = finalize_runtime(&runtime, &fixture.pack);
     assert!(proof.verified, "{:?}", proof.blockers);
-    let calls = fs::read_to_string(fixture.root.join("irecovery-calls.log"))
-        .expect("read call transcript");
-    assert!(calls.lines().any(|line| line.starts_with("-f ") && line.contains("iBSS.img4")));
+    let calls =
+        fs::read_to_string(fixture.root.join("irecovery-calls.log")).expect("read call transcript");
+    assert!(calls
+        .lines()
+        .any(|line| line.starts_with("-f ") && line.contains("iBSS.img4")));
     assert!(calls.lines().any(|line| line == "-c go"));
     assert!(calls.lines().any(|line| line == "-c ramdisk"));
     assert!(calls.lines().any(|line| line == "-c devicetree"));
@@ -261,13 +266,9 @@ fn changed_asset_is_blocked_before_send() {
     let mut runtime = start(&fixture);
     fs::write(fixture.asset_root.join("assets/iBSS.img4"), b"changed").expect("change asset");
 
-    assert!(execute_current_process_step(
-        &policy,
-        &mut runtime,
-        &fixture.pack,
-        &installation
-    )
-    .is_err());
+    assert!(
+        execute_current_process_step(&policy, &mut runtime, &fixture.pack, &installation).is_err()
+    );
     assert!(!fixture.root.join("irecovery-calls.log").exists());
 }
 
@@ -305,8 +306,7 @@ fn wrong_device_checkpoint_is_rejected() {
     acknowledge_wait(&mut runtime, &fixture.pack, 2_000).expect("wait");
     execute_current_process_step(&policy, &mut runtime, &fixture.pack, &installation)
         .expect("send ibec");
-    execute_current_process_step(&policy, &mut runtime, &fixture.pack, &installation)
-        .expect("go");
+    execute_current_process_step(&policy, &mut runtime, &fixture.pack, &installation).expect("go");
     acknowledge_wait(&mut runtime, &fixture.pack, 2_000).expect("wait");
 
     assert!(acknowledge_checkpoint(
