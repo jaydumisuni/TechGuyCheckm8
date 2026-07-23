@@ -53,10 +53,10 @@ for role, path in [('gaster_executable', pathlib.Path(sys.argv[4])), ('irecovery
         raise SystemExit(f'{role} hash mismatch')
 asset_root=pathlib.Path(sys.argv[6]).resolve()
 for role, record in manifest['assets'].items():
-    if role in {'gaster_executable','irecovery_executable'}:
+    if role in {'gaster_executable','i_recovery_executable'}:
         continue
     path=(asset_root.parent / record['relative_path']).resolve()
-    if not path.is_file() or not str(path).startswith(str(asset_root)):
+    if not path.is_file() or asset_root not in path.parents:
         raise SystemExit(f'unsafe or missing asset for {role}: {path}')
     if digest(path) != record['sha256'] or path.stat().st_size != record['byte_len']:
         raise SystemExit(f'asset proof mismatch for {role}')
@@ -149,15 +149,63 @@ done
   > "$SESSION/ramdisk-ssh-proof.txt"
 grep -q '^TTG_SSHRD_READY$' "$SESSION/ramdisk-ssh-proof.txt"
 
+RECOVERY_VERIFIED=false
 if [[ "${TTG_LEAVE_RAMDISK:-NO}" != "YES" ]]; then
   "$SSHPASS" -p alpine ssh \
     -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
     -o ConnectTimeout=10 \
     -p 2222 root@127.0.0.1 '/sbin/reboot' || true
-  sleep 8
-  system_profiler SPUSBDataType SPUSBHostDataType > "$SESSION/post-reboot-usb.txt" 2>&1 || true
+  kill "$IPROXY_PID" 2>/dev/null || true
+  wait "$IPROXY_PID" 2>/dev/null || true
+  unset IPROXY_PID
+
+  NORMAL_USB=0
+  for _ in $(seq 1 60); do
+    system_profiler SPUSBDataType SPUSBHostDataType > "$SESSION/post-reboot-usb.raw.txt" 2>&1 || true
+    if python3 - "$SESSION/post-reboot-usb.raw.txt" <<'PY'
+import sys
+text=open(sys.argv[1], encoding='utf-8', errors='replace').read().lower()
+has_mobile='iphone' in text or 'apple mobile device' in text
+unexpected='dfu mode' in text or 'recovery mode' in text
+raise SystemExit(0 if has_mobile and not unexpected else 1)
+PY
+    then
+      NORMAL_USB=1
+      break
+    fi
+    sleep 1
+  done
+  [[ "$NORMAL_USB" -eq 1 ]] || { echo "Normal-mode USB recovery proof was not observed" >&2; exit 6; }
+
+  set +e
+  "$IRECOVERY" -q > "$SESSION/post-reboot-irecovery.txt" 2>&1
+  IRECOVERY_NORMAL_STATUS=$?
+  set -e
+  [[ "$IRECOVERY_NORMAL_STATUS" -ne 0 ]] || {
+    echo "Device still responds to iRecovery after requested normal reboot" >&2
+    exit 6
+  }
+
+  python3 - "$SESSION/post-reboot-usb.raw.txt" "$SESSION/post-reboot-irecovery.txt" "$SESSION/recovery-proof.json" <<'PY'
+import hashlib, json, pathlib, sys
+usb=pathlib.Path(sys.argv[1]).read_bytes()
+irecovery=pathlib.Path(sys.argv[2]).read_bytes()
+proof={
+  'schema_version':'tgcheckm8.apple-recovery-proof.v1',
+  'normal_mode_usb_observed':True,
+  'dfu_or_recovery_marker_absent':True,
+  'irecovery_no_longer_attached':True,
+  'usb_snapshot_sha256':hashlib.sha256(usb).hexdigest(),
+  'irecovery_exit_snapshot_sha256':hashlib.sha256(irecovery).hexdigest(),
+  'verified':True,
+}
+pathlib.Path(sys.argv[3]).write_text(json.dumps(proof, indent=2, sort_keys=True)+'\n')
+PY
+  rm -f "$SESSION/post-reboot-usb.raw.txt" "$SESSION/post-reboot-irecovery.txt"
+  RECOVERY_VERIFIED=true
 fi
+export RECOVERY_VERIFIED
 
 python3 - "$TARGET" "$MANIFEST" "$RECEIPT" "$SESSION" "$LOG" <<'PY'
 import hashlib, json, os, pathlib, sys
@@ -174,6 +222,8 @@ session=pathlib.Path(sys.argv[4])
 initial=json.load(open(session/'device-dfu-before.json'))
 pwnd=json.load(open(session/'device-pwnd.json'))
 patched=json.load(open(session/'device-patched-iboot.json'))
+recovery_path=session/'recovery-proof.json'
+recovery_verified=os.environ.get('RECOVERY_VERIFIED')=='true'
 proof={
   'schema_version':'tgcheckm8.apple-hardware-proof.v1',
   'session_id':session.name.removeprefix('session-'),
@@ -189,10 +239,13 @@ proof={
   'tool_build_receipt_sha256':h(sys.argv[3]),
   'authorization_ticket_sha256':hashlib.sha256(os.environ['TTG_AUTHORIZATION_TICKET'].encode()).hexdigest(),
   'normal_reboot_requested':os.environ.get('TTG_LEAVE_RAMDISK','NO')!='YES',
+  'recovery_verified':recovery_verified,
+  'recovery_proof_sha256':h(recovery_path) if recovery_path.is_file() else None,
   'stable_promotion_authorized':False,
 }
 (session/'hardware-proof.json').write_text(json.dumps(proof, indent=2, sort_keys=True)+'\n')
 PY
 
 printf 'Hardware sequence complete. Evidence: %s\n' "$SESSION"
-printf 'Stable promotion remains disabled pending transcript review and recovery adjudication.\n'
+printf 'Recovery verified: %s\n' "$RECOVERY_VERIFIED"
+printf 'Stable promotion remains disabled pending transcript review and independent adjudication.\n'
