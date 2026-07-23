@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 concurrency:
@@ -73,7 +73,6 @@ jobs:
           LOG="$BUILD_ROOT/out/build.log"
           {
             git clone https://github.com/libimobiledevice/libplist.git "$SRC"
-            git -C "$SRC/libplist" status >/dev/null 2>&1 || true
             git -C "$SRC" checkout --detach "$PLIST_COMMIT"
             test "$(git -C "$SRC" rev-parse HEAD)" = "$PLIST_COMMIT"
             cd "$SRC"
@@ -198,3 +197,25 @@ jobs:
           EOF
           )
           gh pr comment "$PR_NUMBER" --body "$BODY" --edit-last --create-if-none
+
+      - name: Persist reviewed receipt on branch
+        if: success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$HEAD_REF"
+          git checkout "$HEAD_REF"
+          mkdir -p build-receipts
+          cp "$BUILD_ROOT/out/build-receipt.json" build-receipts/apple-tools-macos-arm64.json
+          cp "$BUILD_ROOT/out/SHA256SUMS" build-receipts/apple-tools-macos-arm64.SHA256SUMS
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-receipts/apple-tools-macos-arm64.json build-receipts/apple-tools-macos-arm64.SHA256SUMS
+          if git diff --cached --quiet; then
+            echo "Reviewed receipt is already current."
+          else
+            git commit -m "Record reviewed macOS Apple tool hashes"
+            git push origin "HEAD:$HEAD_REF"
+          fi
