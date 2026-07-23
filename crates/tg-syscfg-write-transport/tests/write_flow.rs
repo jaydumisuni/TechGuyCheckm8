@@ -383,13 +383,16 @@ impl Drop for Fixture {
     }
 }
 
+type ScriptedExchangeResult = Result<Vec<u8>, String>;
+type ScriptedExchange = (Vec<u8>, ScriptedExchangeResult);
+
 struct ScriptedTransport {
-    steps: VecDeque<(Vec<u8>, Result<Vec<u8>, String>)>,
+    steps: VecDeque<ScriptedExchange>,
     observed: Vec<Vec<u8>>,
 }
 
 impl ScriptedTransport {
-    fn new(steps: Vec<(Vec<u8>, Result<Vec<u8>, String>)>) -> Self {
+    fn new(steps: Vec<ScriptedExchange>) -> Self {
         Self {
             steps: steps.into(),
             observed: Vec::new(),
