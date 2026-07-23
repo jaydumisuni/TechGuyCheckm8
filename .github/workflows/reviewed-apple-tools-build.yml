@@ -1,0 +1,129 @@
+name: Reviewed Apple Tools Build
+
+on:
+  push:
+    branches: [build/reviewed-apple-tools-v1]
+    paths:
+      - ".github/workflows/reviewed-apple-tools-build.yml"
+      - "tools/apple-build/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reviewed-apple-tools-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GASTER_COMMIT: 7fffffff38a1bed1cdc1c5bae0df70f14395129b
+  IRECOVERY_COMMIT: 04d04f7cbaa4696504e91c1478ddd56160ed6776
+  GLUE_COMMIT: da770a7687f35fbb981db4d7b47b1b032cd5c2c7
+  PLIST_COMMIT: 32428abacb909988e8e960a8845a6430b17b6a60
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install autoconf automake libtool pkg-config
+
+      - name: Build reviewed binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$PWD/.apple-tool-build"
+          SRC="$ROOT/src"
+          PREFIX="$ROOT/prefix"
+          OUT="$ROOT/out"
+          LOG="$OUT/build.log"
+          mkdir -p "$SRC" "$PREFIX" "$OUT/bin" "$OUT/licenses"
+          exec > >(tee "$LOG") 2>&1
+
+          echo "runner=$(sw_vers -productVersion) arch=$(uname -m)"
+          echo "xcode=$(xcodebuild -version | tr '\n' ' ')"
+          echo "clang=$(clang --version | head -1)"
+
+          git clone https://github.com/0x7ff/gaster.git "$SRC/gaster"
+          git -C "$SRC/gaster" checkout --detach "$GASTER_COMMIT"
+          test "$(git -C "$SRC/gaster" rev-parse HEAD)" = "$GASTER_COMMIT"
+          test -z "$(git -C "$SRC/gaster" status --porcelain)"
+          make -C "$SRC/gaster" macos CC=clang
+          cp "$SRC/gaster/gaster" "$OUT/bin/gaster"
+
+          git clone https://github.com/libimobiledevice/libplist.git "$SRC/libplist"
+          git -C "$SRC/libplist" checkout --detach "$PLIST_COMMIT"
+          test "$(git -C "$SRC/libplist" rev-parse HEAD)" = "$PLIST_COMMIT"
+          (
+            cd "$SRC/libplist"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared --without-cython --without-tools --without-tests
+            make -j"$(sysctl -n hw.logicalcpu)"
+            make install
+          )
+
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+          export CPPFLAGS="-I$PREFIX/include"
+          export LDFLAGS="-L$PREFIX/lib"
+
+          git clone https://github.com/libimobiledevice/libimobiledevice-glue.git "$SRC/glue"
+          git -C "$SRC/glue" checkout --detach "$GLUE_COMMIT"
+          test "$(git -C "$SRC/glue" rev-parse HEAD)" = "$GLUE_COMMIT"
+          (
+            cd "$SRC/glue"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared
+            make -j"$(sysctl -n hw.logicalcpu)"
+            make install
+          )
+
+          git clone https://github.com/libimobiledevice/libirecovery.git "$SRC/libirecovery"
+          git -C "$SRC/libirecovery" checkout --detach "$IRECOVERY_COMMIT"
+          test "$(git -C "$SRC/libirecovery" rev-parse HEAD)" = "$IRECOVERY_COMMIT"
+          (
+            cd "$SRC/libirecovery"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared --with-tools=yes --with-iokit=yes --without-udev
+            make -j"$(sysctl -n hw.logicalcpu)"
+          )
+          cp "$SRC/libirecovery/tools/irecovery" "$OUT/bin/irecovery"
+
+          chmod 0755 "$OUT/bin/gaster" "$OUT/bin/irecovery"
+          cp "$SRC/gaster/LICENSE" "$OUT/licenses/GASTER-APACHE-2.0.txt"
+          cp "$SRC/libirecovery/COPYING" "$OUT/licenses/LIBIRECOVERY-LGPL-2.1.txt"
+          cp "$SRC/glue/COPYING" "$OUT/licenses/LIBIMOBILEDEVICE-GLUE-LGPL-2.1.txt"
+          cp "$SRC/libplist/COPYING" "$OUT/licenses/LIBPLIST-LGPL-2.1.txt"
+
+          echo "--- gaster dependencies ---"
+          otool -L "$OUT/bin/gaster"
+          echo "--- irecovery dependencies ---"
+          otool -L "$OUT/bin/irecovery"
+          if otool -L "$OUT/bin/irecovery" | grep -E "$PREFIX|/opt/homebrew/Cellar|/usr/local/Cellar"; then
+            echo "irecovery contains a non-relocatable build dependency" >&2
+            exit 1
+          fi
+
+          python3 tools/apple-build/make_receipt.py \
+            --output-dir "$OUT" \
+            --gaster "$OUT/bin/gaster" \
+            --irecovery "$OUT/bin/irecovery" \
+            --gaster-commit "$GASTER_COMMIT" \
+            --irecovery-commit "$IRECOVERY_COMMIT" \
+            --glue-commit "$GLUE_COMMIT" \
+            --plist-commit "$PLIST_COMMIT" \
+            --build-log "$LOG"
+
+          cd "$OUT"
+          shasum -a 256 -c SHA256SUMS
+          python3 -m json.tool build-receipt.json >/dev/null
+          tar -czf ../tgcheckm8-apple-tools-macos-$(uname -m).tar.gz .
+
+      - name: Upload reviewed tools and receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: tgcheckm8-apple-tools-macos
+          path: |
+            .apple-tool-build/out/**
+            .apple-tool-build/tgcheckm8-apple-tools-macos-*.tar.gz
+          if-no-files-found: error
+          retention-days: 90
