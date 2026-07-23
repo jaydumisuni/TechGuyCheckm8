@@ -29,6 +29,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Verify Intel runner
         run: test "$(uname -m)" = "x86_64"
@@ -101,6 +103,10 @@ jobs:
           cp "$SRC/libplist/COPYING" "$OUT/licenses/LIBPLIST-LGPL-2.1.txt"
           otool -L "$OUT/bin/gaster" | tee -a "$LOG"
           otool -L "$OUT/bin/irecovery" | tee -a "$LOG"
+          if otool -L "$OUT/bin/gaster" | grep -E "$PREFIX|/usr/local/Cellar|/opt/homebrew/Cellar"; then
+            echo "gaster contains a non-relocatable build dependency" >&2
+            exit 1
+          fi
           if otool -L "$OUT/bin/irecovery" | grep -E "$PREFIX|/usr/local/Cellar|/opt/homebrew/Cellar"; then
             echo "irecovery contains a non-relocatable build dependency" >&2
             exit 1
