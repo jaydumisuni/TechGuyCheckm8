@@ -25,4 +25,6 @@ The existing transaction engine then performs:
 
 The real serial adapter accepts only fixed `syscfg print` and `syscfg add` command shapes. It exposes no free-form terminal.
 
+The generic mechanism is simulation-tested. Physical write capability remains disabled until a production provider manifest and same-device hardware proof are added in a separate reviewed phase.
+
 No production field is promoted by this crate. A real field remains non-writable until a separate provider manifest is backed by same-device hardware evidence, a verified field meaning, a safe value domain, successful write/read-back proof, interrupted-write recovery proof, and Sergeant final proof. Identity-critical and unknown fields remain blocked.
