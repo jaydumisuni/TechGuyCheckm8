@@ -25,6 +25,7 @@ members = [
     "crates/tg-serial-platform",
     "crates/tg-syscfg-read-transport",
     "crates/tg-syscfg-backup-vault",
+    "crates/tg-syscfg-write-transport",
 ]
 resolver = "2"
 
