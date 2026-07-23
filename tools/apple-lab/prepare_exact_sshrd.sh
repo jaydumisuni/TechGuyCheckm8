@@ -81,21 +81,9 @@ test "$(git -C "$WORK/SSHRD_Script" rev-parse HEAD)" = "$SSHRD_COMMIT"
 cp "$GASTER" "$WORK/SSHRD_Script/Darwin/gaster"
 cp "$IRECOVERY" "$WORK/SSHRD_Script/Darwin/irecovery"
 chmod 0755 "$WORK/SSHRD_Script/Darwin/gaster" "$WORK/SSHRD_Script/Darwin/irecovery"
-
-python3 - "$WORK/SSHRD_Script/sshrd.sh" <<'PY'
-from pathlib import Path
-import sys
-path=Path(sys.argv[1])
-text=path.read_text(encoding='utf-8')
-needle='ipswurl=$(curl -sL "https://api.ipsw.me/v4/device/$deviceid?type=ipsw" | "$oscheck"/jq \'.firmwares | .[] | select(.version=="\'$1\'")\' | "$oscheck"/jq -s \'.[0] | .url\' --raw-output)'
-replacement='ipswurl="${TTG_IPSW_URL:?TTG_IPSW_URL is required}"'
-if text.count(needle) != 1:
-    raise SystemExit('Could not locate the exact SSHRD IPSW selection line')
-text=text.replace(needle, replacement)
-out=path.with_name('ttg-build-exact.sh')
-out.write_text(text, encoding='utf-8')
-out.chmod(0o755)
-PY
+python3 "$SCRIPT_ROOT/patch_sshrd.py" \
+  "$WORK/SSHRD_Script/sshrd.sh" \
+  "$WORK/SSHRD_Script/ttg-build-exact.sh"
 
 python3 - "$WORK/SSHRD_Script/Darwin" "$EVIDENCE/sshrd-darwin-tool-inventory.json" <<'PY'
 import hashlib, json, pathlib, sys
@@ -108,11 +96,40 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({'schema_version':'tgcheckm8.ssh
 PY
 
 export TTG_IPSW_URL="$IPSW_URL"
+export TTG_BUILD_MANIFEST_OUT="$EVIDENCE/BuildManifest.plist"
 export USB_TIMEOUT="${USB_TIMEOUT:-5}"
 (
   cd "$WORK/SSHRD_Script"
   ./ttg-build-exact.sh "$IOS_VERSION"
 ) 2>&1 | tee "$EVIDENCE/sshrd-build.log"
+
+[[ -s "$EVIDENCE/BuildManifest.plist" ]] || {
+  echo "Pinned SSHRD build did not preserve BuildManifest evidence" >&2
+  exit 4
+}
+python3 - "$TARGET" "$EVIDENCE/BuildManifest.plist" <<'PY'
+import json, plistlib, sys
+
+target=json.load(open(sys.argv[1], encoding='utf-8'))
+with open(sys.argv[2], 'rb') as handle:
+    manifest=plistlib.load(handle)
+if manifest.get('ProductBuildVersion') != target['firmware_build']:
+    raise SystemExit(f"BuildManifest build mismatch: {manifest.get('ProductBuildVersion')}")
+strings=[]
+def visit(value):
+    if isinstance(value, dict):
+        for item in value.values(): visit(item)
+    elif isinstance(value, list):
+        for item in value: visit(item)
+    elif isinstance(value, str):
+        strings.append(value)
+visit(manifest)
+if target['product_type'] not in strings:
+    raise SystemExit('BuildManifest does not contain the target product type')
+if target['board_config'].lower() not in {value.lower() for value in strings}:
+    raise SystemExit('BuildManifest does not contain the target board configuration')
+print('Exact ProductBuildVersion, product type and board verified in BuildManifest.')
+PY
 
 for required in iBSS.img4 iBEC.img4 logo.img4 ramdisk.img4 devicetree.img4 trustcache.img4 kernelcache.img4 version.txt; do
   [[ -s "$WORK/SSHRD_Script/sshramdisk/$required" ]] || {
@@ -120,6 +137,10 @@ for required in iBSS.img4 iBEC.img4 logo.img4 ramdisk.img4 devicetree.img4 trust
     exit 4
   }
 done
+[[ "$(cat "$WORK/SSHRD_Script/sshramdisk/version.txt")" = "$IOS_VERSION" ]] || {
+  echo "Generated ramdisk version marker does not match the target" >&2
+  exit 4
+}
 
 rm -rf "$PACKAGE/assets"
 mkdir -p "$PACKAGE/assets"
@@ -132,11 +153,12 @@ cp "$WORK/SSHRD_Script/sshramdisk/trustcache.img4" "$PACKAGE/assets/trustcache.i
 cp "$WORK/SSHRD_Script/sshramdisk/kernelcache.img4" "$PACKAGE/assets/kernelcache.img4"
 cp "$TARGET" "$PACKAGE/target.json"
 cp "$RECEIPT" "$PACKAGE/tool-build-receipt.json"
+cp "$EVIDENCE/BuildManifest.plist" "$PACKAGE/BuildManifest.plist"
 
 rm -f "$OUTPUT/${TARGET_ID}.zip"
 (
   cd "$PACKAGE"
-  /usr/bin/zip -X -r "$OUTPUT/${TARGET_ID}.zip" assets target.json tool-build-receipt.json
+  /usr/bin/zip -X -r "$OUTPUT/${TARGET_ID}.zip" assets target.json tool-build-receipt.json BuildManifest.plist
 )
 
 git clone https://github.com/jaydumisuni/ttgtool-ramdisks.git "$WORK/ttgtool-ramdisks"
@@ -175,12 +197,14 @@ receipt={
   'firmware_build':target['firmware_build'],
   'ipsw_url':target['ipsw']['url'],
   'ipsw_expected_sha256':sys.argv[4],
+  'build_manifest_sha256':h(evidence/'BuildManifest.plist'),
   'package_zip_sha256':h(out/(target['target_id']+'.zip')),
   'package_inventory_sha256':h(out/'package-inventory.json'),
   'device_proof_sha256':h(evidence/'device-before.json'),
   'sshrd_build_log_sha256':h(evidence/'sshrd-build.log'),
   'authorization_ticket_sha256':hashlib.sha256(os.environ['TTG_AUTHORIZATION_TICKET'].encode()).hexdigest(),
   'asset_generation_complete':True,
+  'pwned_dfu_used_for_build':True,
   'device_boot_executed':False,
   'execution_authorized':False,
 }
@@ -190,4 +214,4 @@ PY
 printf 'Exact SSHRD package prepared for %s / %s / %s.\n' "$PRODUCT" "$BOARD" "$FIRMWARE_BUILD"
 printf 'Package: %s\n' "$OUTPUT/${TARGET_ID}.zip"
 printf 'Runtime manifest: %s\n' "$OUTPUT/provider/provider-pack.runtime.json"
-printf 'No boot was executed by this preparation step.\n'
+printf 'The build used authorised pwned DFU for key handling; no ramdisk boot was executed.\n'
