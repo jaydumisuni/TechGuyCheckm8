@@ -55,3 +55,7 @@ A field can be enabled only in a separate reviewed provider manifest after:
 5. rollback is demonstrated from the encrypted vault object;
 6. identity and ownership protections remain unaffected;
 7. Rust, Sergeant and hardware evidence gates all pass.
+
+## Progress handoff
+
+After merge, the live state must be recorded in `jaydumisuni/TTG-progress` under `projects/tgcheckm8/` using `CURRENT.md`, `DONE.md`, `NEXT.md`, and `BLOCKERS.md`. That record must distinguish the completed simulation-tested mechanism from the still-blocked production field and physical-device promotion work.
