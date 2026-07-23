@@ -1,0 +1,15 @@
+[package]
+name = "tg-apple-route-reference"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+tg-contracts.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
