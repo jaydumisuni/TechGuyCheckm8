@@ -119,6 +119,7 @@ pub struct XRayAppleRouteCertificate {
     pub product_type: String,
     pub board_config: String,
     pub cpid: String,
+    pub firmware_build: String,
     pub bundle_manifest_sha256: String,
     pub signature_verified: bool,
     pub write_allowed: bool,
@@ -154,6 +155,7 @@ pub fn validate_manifest(manifest: &AppleRouteReferenceManifest) -> Result<(), R
     }
     if manifest.product_types.is_empty()
         || manifest.board_configs.is_empty()
+        || manifest.firmware_builds.is_empty()
         || manifest.environments.is_empty()
         || manifest.required_asset_roles.is_empty()
     {
@@ -240,8 +242,9 @@ pub fn evaluate_hardware_verification(
         || certificate.product_type.trim().is_empty()
         || certificate.board_config.trim().is_empty()
         || certificate.cpid.trim().is_empty()
+        || certificate.firmware_build.trim().is_empty()
     {
-        blockers.push("X-Ray certificate identity is incomplete".to_owned());
+        blockers.push("X-Ray certificate identity or firmware build is incomplete".to_owned());
     }
     if !request
         .manifest
@@ -251,8 +254,12 @@ pub fn evaluate_hardware_verification(
             .manifest
             .board_configs
             .contains(&certificate.board_config)
+        || !request
+            .manifest
+            .firmware_builds
+            .contains(&certificate.firmware_build)
     {
-        blockers.push("X-Ray device is outside the exact route manifest".to_owned());
+        blockers.push("X-Ray device or firmware is outside the exact route manifest".to_owned());
     }
     if request.current_unix < certificate.observed_at_unix
         || request.current_unix > certificate.expires_at_unix
@@ -289,6 +296,7 @@ pub fn evaluate_hardware_verification(
             "reference_source_pinned".to_owned(),
             "local_assets_hash_pinned".to_owned(),
             "device_exact_route_manifest".to_owned(),
+            "firmware_build_exact_match".to_owned(),
             "known_good_sequence_reproduced".to_owned(),
             "hardware_transcript_required".to_owned(),
         ]),
