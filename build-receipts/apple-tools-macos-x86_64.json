@@ -1,18 +1,18 @@
 {
-  "build_id": "30008356681",
+  "build_id": "30008490051",
   "build_log": {
     "byte_len": 33301,
     "filename": "build.log",
-    "sha256": "7dab4965783ee9435ad99019dace39a973a98f591bc800e9dae1cb7601bb61ef"
+    "sha256": "f048cdc25066e566d3ad51ffad83d8d48476cdd317ecc9de4366cd1a70530456"
   },
   "builder": {
-    "commit": "cfa0a45a3f5338c37624fed802e112e68b7cb7f4",
+    "commit": "bfc3232fedbc66f81acf5497692361d4d85a3ef7",
     "repository": "jaydumisuni/TechGuyCheckm8",
     "run_attempt": "1",
-    "run_id": "30008356681",
+    "run_id": "30008490051",
     "workflow": "Reviewed Apple Tools Intel Build"
   },
-  "generated_at_utc": "2026-07-23T12:48:10.665994+00:00",
+  "generated_at_utc": "2026-07-23T12:50:04.897818+00:00",
   "host": {
     "compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)\nTarget: x86_64-apple-darwin24.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
     "machine": "x86_64",
@@ -43,7 +43,7 @@
       "filename": "irecovery",
       "relative_path": "bin/irecovery",
       "role": "irecovery_executable",
-      "sha256": "64b8ae860ac826c14f8fb6176b775c34b10faa1007a8994e217fcf15a70b37fc",
+      "sha256": "9f83c83aca58e5625dfe69c0f49ce38fb0f4683af64bcbec35207949969a8c4a",
       "smoke_command": [
         "/Users/runner/work/TechGuyCheckm8/TechGuyCheckm8/.apple-tool-build-intel/out/bin/irecovery",
         "--help"
