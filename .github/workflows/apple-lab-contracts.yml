@@ -1,0 +1,58 @@
+name: Apple Lab Contracts
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/apple-lab-contracts.yml"
+      - "tools/apple-lab/**"
+      - "crates/tg-ramdisk-pack/**"
+  push:
+    branches: [build/reviewed-apple-tools-v1]
+    paths:
+      - ".github/workflows/apple-lab-contracts.yml"
+      - "tools/apple-lab/**"
+      - "crates/tg-ramdisk-pack/**"
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python and parse shell
+        run: |
+          python -m compileall -q tools/apple-build tools/apple-lab
+          bash -n tools/apple-lab/prepare_exact_sshrd.sh
+          bash -n tools/apple-lab/execute_exact_sequence.sh
+
+      - name: Run lab contract tests
+        run: python -m unittest discover -s tools/apple-lab/tests -v
+
+      - name: Verify patch against pinned SSHRD
+        run: |
+          git clone --filter=blob:none https://github.com/verygenericname/SSHRD_Script.git .tmp-sshrd
+          git -C .tmp-sshrd checkout --detach d99ec4a19172b87d80fd9dea25eabf39291425a0
+          python tools/apple-lab/patch_sshrd.py .tmp-sshrd/sshrd.sh .tmp-sshrd/ttg-build-exact.sh
+          bash -n .tmp-sshrd/ttg-build-exact.sh
+          grep -q 'TTG_IPSW_URL' .tmp-sshrd/ttg-build-exact.sh
+          grep -q 'TTG_BUILD_MANIFEST_OUT' .tmp-sshrd/ttg-build-exact.sh
+
+      - name: Validate generated runtime manifest with Rust
+        run: |
+          python tools/apple-lab/tests/generate_provider_fixture.py .tmp-provider
+          cargo run --locked -p tg-ramdisk-pack --example validate_manifest -- .tmp-provider/provider/provider-pack.runtime.json
+
+      - name: Enforce lab safety boundary
+        run: |
+          ! grep -R --line-number -E 'activation[_ -]?bypass|baseband.*(disable|patch)|generic.*terminal' tools/apple-lab
+          grep -R --line-number 'stable_promotion_authorized.*False' tools/apple-lab/execute_exact_sequence.sh
+          grep -R --line-number 'execution_authorized.*False' tools/apple-lab/make_provider_manifest.py
