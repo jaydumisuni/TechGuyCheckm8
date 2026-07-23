@@ -39,8 +39,11 @@ BOARD="$(read_json board_config)"
 CPID="$(read_json cpid)"
 IOS_VERSION="$(read_json ios_version)"
 FIRMWARE_BUILD="$(read_json firmware_build)"
+IPSW_FILENAME="$(read_json ipsw.filename)"
 IPSW_URL="$(read_json ipsw.url)"
 IPSW_SHA256="$(read_json ipsw.sha256)"
+GASTER_COMMIT="$(read_json source_pins.gaster)"
+IRECOVERY_COMMIT="$(read_json source_pins.irecovery)"
 SSHRD_COMMIT="$(read_json source_pins.sshrd)"
 CATALOG_COMMIT="$(read_json source_pins.ramdisk_catalog)"
 
@@ -51,17 +54,57 @@ for file in "$RECEIPT" "$GASTER" "$IRECOVERY"; do
   [[ -f "$file" ]] || { echo "Missing reviewed tool input: $file" >&2; exit 3; }
 done
 
-python3 - "$RECEIPT" "$GASTER" "$IRECOVERY" <<'PY'
+python3 - "$TARGET" "$RECEIPT" "$GASTER" "$IRECOVERY" <<'PY'
 import hashlib, json, pathlib, sys
-receipt=json.load(open(sys.argv[1], encoding='utf-8'))
-for role, path in [('gaster_executable', pathlib.Path(sys.argv[2])), ('irecovery_executable', pathlib.Path(sys.argv[3]))]:
+
+target=json.load(open(sys.argv[1], encoding='utf-8'))
+receipt=json.load(open(sys.argv[2], encoding='utf-8'))
+source_pins={item['role']: item['commit'] for item in receipt.get('source_pins', [])}
+expected={
+    'gaster': target['source_pins']['gaster'],
+    'irecovery': target['source_pins']['irecovery'],
+}
+for role, commit in expected.items():
+    if source_pins.get(role) != commit:
+        raise SystemExit(f'reviewed receipt source pin mismatch for {role}')
+for role, path in [
+    ('gaster_executable', pathlib.Path(sys.argv[3])),
+    ('irecovery_executable', pathlib.Path(sys.argv[4])),
+]:
     record=next((x for x in receipt['outputs'] if x['role']==role), None)
     if not record:
         raise SystemExit(f'missing {role} in receipt')
     digest=hashlib.sha256(path.read_bytes()).hexdigest()
     if digest != record['sha256']:
         raise SystemExit(f'{role} hash mismatch')
-print('Reviewed tool hashes verified.')
+print('Reviewed source pins and tool hashes verified.')
+PY
+
+IPSW_FILE="$WORK/$IPSW_FILENAME"
+echo "Downloading and hashing exact IPSW before device work: $IPSW_FILENAME"
+curl --fail --location --retry 3 --retry-all-errors --continue-at - --output "$IPSW_FILE" "$IPSW_URL"
+python3 - "$IPSW_FILE" "$IPSW_SHA256" "$IPSW_URL" "$EVIDENCE/ipsw-proof.json" <<'PY'
+import hashlib, json, pathlib, sys
+path=pathlib.Path(sys.argv[1])
+digest=hashlib.sha256()
+with path.open('rb') as handle:
+    for block in iter(lambda: handle.read(1024*1024), b''):
+        digest.update(block)
+actual=digest.hexdigest()
+expected=sys.argv[2].lower()
+if actual != expected:
+    raise SystemExit(f'IPSW SHA-256 mismatch: expected {expected}, observed {actual}')
+proof={
+    'schema_version':'tgcheckm8.ipsw-proof.v1',
+    'filename':path.name,
+    'url':sys.argv[3],
+    'byte_len':path.stat().st_size,
+    'expected_sha256':expected,
+    'observed_sha256':actual,
+    'verified':True,
+}
+pathlib.Path(sys.argv[4]).write_text(json.dumps(proof, indent=2, sort_keys=True)+'\n', encoding='utf-8')
+print(f'Exact IPSW SHA-256 verified: {actual}')
 PY
 
 chmod 0755 "$GASTER" "$IRECOVERY"
@@ -102,6 +145,7 @@ export USB_TIMEOUT="${USB_TIMEOUT:-5}"
   cd "$WORK/SSHRD_Script"
   ./ttg-build-exact.sh "$IOS_VERSION"
 ) 2>&1 | tee "$EVIDENCE/sshrd-build.log"
+rm -f "$IPSW_FILE"
 
 [[ -s "$EVIDENCE/BuildManifest.plist" ]] || {
   echo "Pinned SSHRD build did not preserve BuildManifest evidence" >&2
@@ -154,11 +198,12 @@ cp "$WORK/SSHRD_Script/sshramdisk/kernelcache.img4" "$PACKAGE/assets/kernelcache
 cp "$TARGET" "$PACKAGE/target.json"
 cp "$RECEIPT" "$PACKAGE/tool-build-receipt.json"
 cp "$EVIDENCE/BuildManifest.plist" "$PACKAGE/BuildManifest.plist"
+cp "$EVIDENCE/ipsw-proof.json" "$PACKAGE/ipsw-proof.json"
 
 rm -f "$OUTPUT/${TARGET_ID}.zip"
 (
   cd "$PACKAGE"
-  /usr/bin/zip -X -r "$OUTPUT/${TARGET_ID}.zip" assets target.json tool-build-receipt.json BuildManifest.plist
+  /usr/bin/zip -X -r "$OUTPUT/${TARGET_ID}.zip" assets target.json tool-build-receipt.json BuildManifest.plist ipsw-proof.json
 )
 
 git clone https://github.com/jaydumisuni/ttgtool-ramdisks.git "$WORK/ttgtool-ramdisks"
@@ -174,7 +219,7 @@ python3 "$SCRIPT_ROOT/make_provider_manifest.py" \
   --inventory "$OUTPUT/package-inventory.json" \
   --output-dir "$OUTPUT/provider"
 
-python3 - "$TARGET" "$OUTPUT" "$EVIDENCE" "$IPSW_SHA256" <<'PY'
+python3 - "$TARGET" "$OUTPUT" "$EVIDENCE" <<'PY'
 import hashlib, json, os, pathlib, sys
 
 def h(path):
@@ -187,6 +232,7 @@ def h(path):
 target=json.load(open(sys.argv[1], encoding='utf-8'))
 out=pathlib.Path(sys.argv[2])
 evidence=pathlib.Path(sys.argv[3])
+ipsw_proof=json.load(open(evidence/'ipsw-proof.json', encoding='utf-8'))
 receipt={
   'schema_version':'tgcheckm8.sshrd-build-receipt.v1',
   'target_id':target['target_id'],
@@ -196,7 +242,10 @@ receipt={
   'ios_version':target['ios_version'],
   'firmware_build':target['firmware_build'],
   'ipsw_url':target['ipsw']['url'],
-  'ipsw_expected_sha256':sys.argv[4],
+  'ipsw_expected_sha256':ipsw_proof['expected_sha256'],
+  'ipsw_observed_sha256':ipsw_proof['observed_sha256'],
+  'ipsw_byte_len':ipsw_proof['byte_len'],
+  'ipsw_proof_sha256':h(evidence/'ipsw-proof.json'),
   'build_manifest_sha256':h(evidence/'BuildManifest.plist'),
   'package_zip_sha256':h(out/(target['target_id']+'.zip')),
   'package_inventory_sha256':h(out/'package-inventory.json'),
@@ -214,4 +263,4 @@ PY
 printf 'Exact SSHRD package prepared for %s / %s / %s.\n' "$PRODUCT" "$BOARD" "$FIRMWARE_BUILD"
 printf 'Package: %s\n' "$OUTPUT/${TARGET_ID}.zip"
 printf 'Runtime manifest: %s\n' "$OUTPUT/provider/provider-pack.runtime.json"
-printf 'The build used authorised pwned DFU for key handling; no ramdisk boot was executed.\n'
+printf 'The full IPSW hash and BuildManifest were verified; authorised pwned DFU was used for key handling; no ramdisk boot was executed.\n'
