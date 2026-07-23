@@ -12,17 +12,20 @@ This is an execution record for the current implementation batch. Ten research/i
 | 6 | `checkm8-a5-` | A5/A5X Arduino/MAX3421E hardware path and cable constraints | default demotion as a service action |
 | 7 | TTG Unlock repositories | checksum-verified development distribution and privacy boundaries | unrelated Android/FRP behavior |
 | 8 | `0x7ff/gaster` and `usbliter8` | generation-specific pwn providers and PWND evidence | cross-generation provider reuse |
-| 9 | UnlockTool catalogue and SSHRD Script | working package coverage and exact typed A8-A11 build/boot recipe | remote-catalogue execution and bundled Apple images |
+| 9 | UnlockTool catalogue, SSHRD Script, and libirecovery | package coverage, exact A8-A11 build/boot recipe, fixed asset/command transport | remote-catalogue execution and bundled Apple images |
 | 10 | X-Ray and `TTG-progress` | read-only identity certificate, route evidence, durable handoff | operation authorization |
 
 ## Reconciled implementation
 
-The first output is split into two independent layers:
+The first output is split into three independent layers:
 
 1. `tg-gaster-provider`: fixed `pwn` and `reset`, executable hash verification, supervised execution, cleanup proof, and same-device `PWND:[checkm8]` reconnect proof.
 2. `tg-ramdisk-pack`: exact device/build/provider/source/asset metadata and the typed SSHRD boot sequence.
+3. `tg-ramdisk-boot`: hash-pinned iRecovery execution limited to typed `-f` asset sends and fixed `-c` commands, with ordered waits, same-device checkpoints, failure stop, and final environment proof.
 
-Neither layer exposes activation bypass, identity mutation, arbitrary shell execution, free-form iBoot commands, or remote package execution.
+The separate `ttgtool-ramdisks` catalogue now supplies a JSON Schema, safe streaming ZIP inventory, hostile-archive checks, and local provider-pack templates without committing package binaries.
+
+None of these layers exposes activation bypass, identity mutation, arbitrary shell execution, free-form iBoot commands, or remote package execution.
 
 ## Two closing gates
 
