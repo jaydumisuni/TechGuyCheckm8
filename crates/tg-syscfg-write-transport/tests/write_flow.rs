@@ -37,7 +37,8 @@ use tg_syscfg_write_transport::{
 use uuid::Uuid;
 
 const PROVIDER_ID: &str = "synthetic.syscfg-selected-write";
-const RAW_BACKUP: &[u8] = b"syscfg list\r\nSrNm: PRIVATE-SERIAL\r\nRegn: LL/A\r\nDiagFlag: OLD\r\n>\r\n";
+const RAW_BACKUP: &[u8] =
+    b"syscfg list\r\nSrNm: PRIVATE-SERIAL\r\nRegn: LL/A\r\nDiagFlag: OLD\r\n>\r\n";
 
 fn settings() -> SerialSettings {
     SerialSettings {
@@ -257,8 +258,9 @@ impl Fixture {
         let device_hash = "c".repeat(64);
         let serial_manifest = serial_manifest();
         let purple_manifest = purple_manifest();
-        let selected = select_candidate(&doctor_manifest(), HostPlatform::Windows, &[observation()])
-            .expect("candidate should select");
+        let selected =
+            select_candidate(&doctor_manifest(), HostPlatform::Windows, &[observation()])
+                .expect("candidate should select");
         let owner = LeaseOwner {
             session_id,
             worker_id: "syscfg-selected-write".to_owned(),
@@ -328,8 +330,7 @@ impl Fixture {
             key: &key,
         })
         .expect("backup should be verified");
-        let write_context =
-            syscfg_context(session_id, &device_hash, required_write_permissions());
+        let write_context = syscfg_context(session_id, &device_hash, required_write_permissions());
 
         Self {
             endpoint,
@@ -426,9 +427,15 @@ fn one_approved_diagnostic_field_commits_after_exact_readback() {
     let fixture = Fixture::new();
     let authorization = fixture.authorization();
     let mut transport = ScriptedTransport::new(vec![
-        (b"syscfg print DiagFlag\n".to_vec(), ok(b"DiagFlag: OLD\r\n>\r\n")),
+        (
+            b"syscfg print DiagFlag\n".to_vec(),
+            ok(b"DiagFlag: OLD\r\n>\r\n"),
+        ),
         (b"syscfg add DiagFlag NEW\n".to_vec(), ok(b"OK\r\n>\r\n")),
-        (b"syscfg print DiagFlag\n".to_vec(), ok(b"DiagFlag: NEW\r\n>\r\n")),
+        (
+            b"syscfg print DiagFlag\n".to_vec(),
+            ok(b"DiagFlag: NEW\r\n>\r\n"),
+        ),
     ]);
     let evidence = execute_selected_write_with_transport(
         fixture.request(
@@ -440,7 +447,10 @@ fn one_approved_diagnostic_field_commits_after_exact_readback() {
     )
     .expect("selected write should execute");
 
-    assert_eq!(evidence.outcome.status, TransactionStatus::VerifiedCommitted);
+    assert_eq!(
+        evidence.outcome.status,
+        TransactionStatus::VerifiedCommitted
+    );
     assert!(!evidence.outcome.recovery_required);
     assert!(evidence.rollback_package_verified);
     assert_eq!(evidence.selected_class, SysCfgFieldClass::Diagnostic);
@@ -470,7 +480,10 @@ fn changed_precondition_stops_before_any_write() {
     .expect("transaction should produce a failed-no-write outcome");
 
     assert_eq!(evidence.outcome.status, TransactionStatus::FailedNoWrite);
-    assert_eq!(transport.observed, vec![b"syscfg print DiagFlag\n".to_vec()]);
+    assert_eq!(
+        transport.observed,
+        vec![b"syscfg print DiagFlag\n".to_vec()]
+    );
 }
 
 #[test]
@@ -478,11 +491,20 @@ fn readback_mismatch_rolls_back_and_verifies_original_value() {
     let fixture = Fixture::new();
     let authorization = fixture.authorization();
     let mut transport = ScriptedTransport::new(vec![
-        (b"syscfg print DiagFlag\n".to_vec(), ok(b"DiagFlag: OLD\r\n>\r\n")),
+        (
+            b"syscfg print DiagFlag\n".to_vec(),
+            ok(b"DiagFlag: OLD\r\n>\r\n"),
+        ),
         (b"syscfg add DiagFlag NEW\n".to_vec(), ok(b"OK\r\n>\r\n")),
-        (b"syscfg print DiagFlag\n".to_vec(), ok(b"DiagFlag: OTHER\r\n>\r\n")),
+        (
+            b"syscfg print DiagFlag\n".to_vec(),
+            ok(b"DiagFlag: OTHER\r\n>\r\n"),
+        ),
         (b"syscfg add DiagFlag OLD\n".to_vec(), ok(b"OK\r\n>\r\n")),
-        (b"syscfg print DiagFlag\n".to_vec(), ok(b"DiagFlag: OLD\r\n>\r\n")),
+        (
+            b"syscfg print DiagFlag\n".to_vec(),
+            ok(b"DiagFlag: OLD\r\n>\r\n"),
+        ),
     ]);
     let evidence = execute_selected_write_with_transport(
         fixture.request(
@@ -494,7 +516,10 @@ fn readback_mismatch_rolls_back_and_verifies_original_value() {
     )
     .expect("transaction should return rollback evidence");
 
-    assert_eq!(evidence.outcome.status, TransactionStatus::RolledBackVerified);
+    assert_eq!(
+        evidence.outcome.status,
+        TransactionStatus::RolledBackVerified
+    );
     assert!(!evidence.outcome.recovery_required);
     assert!(evidence.outcome.fields[0].rollback_attempted);
     assert!(evidence.outcome.fields[0].rollback_verified);
@@ -505,9 +530,15 @@ fn rollback_failure_escalates_to_recovery_required() {
     let fixture = Fixture::new();
     let authorization = fixture.authorization();
     let mut transport = ScriptedTransport::new(vec![
-        (b"syscfg print DiagFlag\n".to_vec(), ok(b"DiagFlag: OLD\r\n>\r\n")),
+        (
+            b"syscfg print DiagFlag\n".to_vec(),
+            ok(b"DiagFlag: OLD\r\n>\r\n"),
+        ),
         (b"syscfg add DiagFlag NEW\n".to_vec(), ok(b"OK\r\n>\r\n")),
-        (b"syscfg print DiagFlag\n".to_vec(), ok(b"DiagFlag: OTHER\r\n>\r\n")),
+        (
+            b"syscfg print DiagFlag\n".to_vec(),
+            ok(b"DiagFlag: OTHER\r\n>\r\n"),
+        ),
         (
             b"syscfg add DiagFlag OLD\n".to_vec(),
             Err("simulated rollback transport failure".to_owned()),

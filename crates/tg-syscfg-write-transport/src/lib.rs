@@ -11,8 +11,8 @@ mod transport;
 
 pub use pipeline::{
     execute_selected_write_with_serialport, execute_selected_write_with_transport,
-    required_write_transport_permissions, SelectedNonIdentityFieldWrite,
-    SelectedWriteEvidence, SelectedWriteRequest, WriteTransportAuthorization,
+    required_write_transport_permissions, SelectedNonIdentityFieldWrite, SelectedWriteEvidence,
+    SelectedWriteRequest, WriteTransportAuthorization,
 };
 pub use transport::{SerialportSysCfgWriteTransport, WriteFramePolicy};
 

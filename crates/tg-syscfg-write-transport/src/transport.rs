@@ -97,7 +97,9 @@ impl SerialTransport for SerialportSysCfgWriteTransport {
             return Err(transport_error("command surface violation"));
         }
         if max_response_bytes == 0 || max_response_bytes > self.policy.max_response_bytes {
-            return Err(transport_error("response limit violates write-frame policy"));
+            return Err(transport_error(
+                "response limit violates write-frame policy",
+            ));
         }
 
         self.port

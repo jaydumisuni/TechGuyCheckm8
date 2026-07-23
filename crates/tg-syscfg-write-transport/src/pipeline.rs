@@ -4,8 +4,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use tg_contracts::Permission;
 use tg_purple::{
-    PurpleProviderManifest, SysCfgChange, SysCfgFieldClass, SysCfgWriteIntent,
-    SysCfgWriteRequest,
+    PurpleProviderManifest, SysCfgChange, SysCfgFieldClass, SysCfgWriteIntent, SysCfgWriteRequest,
 };
 use tg_syscfg_backup_vault::{BackupPipelineEvidence, FileBackupVault, VaultKey};
 use tg_syscfg_read_transport::BoundReadEndpoint;
@@ -129,11 +128,8 @@ pub fn execute_selected_write_with_serialport(
 ) -> Result<SelectedWriteEvidence, SysCfgWriteTransportError> {
     policy.validate(request.serial_manifest)?;
     let prepared = prepare_write(&request)?;
-    let mut transport = SerialportSysCfgWriteTransport::open(
-        request.endpoint,
-        request.serial_manifest,
-        policy,
-    )?;
+    let mut transport =
+        SerialportSysCfgWriteTransport::open(request.endpoint, request.serial_manifest, policy)?;
     Ok(execute_prepared(
         request.serial_manifest,
         request.context,
