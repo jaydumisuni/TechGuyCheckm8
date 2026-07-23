@@ -11,12 +11,17 @@ on:
         description: Reviewed tools artifact matching the lab Mac architecture
         required: true
         default: tgcheckm8-apple-tools-macos
-        type: string
+        type: choice
+        options:
+          - tgcheckm8-apple-tools-macos
+          - tgcheckm8-apple-tools-macos-x86_64
       target_path:
         description: Exact tracked target manifest
         required: true
         default: tools/apple-lab/targets/iphone10,6-d221ap-16.7.10-20h350.json
-        type: string
+        type: choice
+        options:
+          - tools/apple-lab/targets/iphone10,6-d221ap-16.7.10-20h350.json
       confirm_authorized_device:
         description: Confirm the connected device is authorised for this service operation
         required: true
@@ -42,18 +47,31 @@ jobs:
     if: inputs.confirm_authorized_device == 'yes'
     runs-on: [self-hosted, macOS, ttg-apple-lab]
     environment: apple-lab
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Enforce protected authorisation
+      - name: Enforce protected authorisation and exact target
         shell: bash
         env:
           TTG_AUTHORIZATION_TICKET: ${{ secrets.TTG_AUTHORIZATION_TICKET }}
+          TARGET_PATH: ${{ inputs.target_path }}
         run: |
           set -euo pipefail
           [[ -n "$TTG_AUTHORIZATION_TICKET" ]] || {
             echo "The protected apple-lab environment must provide TTG_AUTHORIZATION_TICKET." >&2
+            exit 2
+          }
+          case "$TARGET_PATH" in
+            tools/apple-lab/targets/*.json) ;;
+            *) echo "Target path is outside the approved target catalogue." >&2; exit 2 ;;
+          esac
+          TARGET_REAL=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve())' "$TARGET_PATH")
+          TARGET_ROOT=$(python3 -c 'import pathlib; print(pathlib.Path("tools/apple-lab/targets").resolve())')
+          [[ "$TARGET_REAL" == "$TARGET_ROOT"/* && -f "$TARGET_REAL" ]] || {
+            echo "Target path did not resolve to a tracked target manifest." >&2
             exit 2
           }
           mkdir -p "$LAB_ROOT/download" "$LAB_ROOT/reviewed-tools" "$LAB_ROOT/prepared" "$LAB_ROOT/evidence"
@@ -135,5 +153,6 @@ jobs:
             .authorized-apple-lab/prepared/provider/**
             .authorized-apple-lab/prepared/sshrd-build-receipt.json
             .authorized-apple-lab/evidence/**
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 30
