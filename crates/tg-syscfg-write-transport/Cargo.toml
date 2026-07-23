@@ -1,0 +1,26 @@
+[package]
+name = "tg-syscfg-write-transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serialport.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+tg-contracts = { path = "../tg-contracts" }
+tg-purple = { path = "../tg-purple" }
+tg-serial-doctor = { path = "../tg-serial-doctor" }
+tg-syscfg-backup-vault = { path = "../tg-syscfg-backup-vault" }
+tg-syscfg-read-transport = { path = "../tg-syscfg-read-transport" }
+tg-syscfg-serial = { path = "../tg-syscfg-serial" }
+
+[dev-dependencies]
+serde_json.workspace = true
+sha2.workspace = true
+tg-leases = { path = "../tg-leases" }
+tg-purple-boot = { path = "../tg-purple-boot" }
+tg-serial-platform = { path = "../tg-serial-platform" }
