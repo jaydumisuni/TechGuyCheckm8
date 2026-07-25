@@ -1,0 +1,5 @@
+source_repository=jaydumisuni/THETECHGUY-TOOL
+source_branch=feature/dev-console-reporting-v1
+source_commit=444f15fbbe68ce8b62d66de861e9ae2304ba49b5
+requested_at_utc=2026-07-25T06:55:00Z
+purpose=exact private Development Console and reporting visual proof
