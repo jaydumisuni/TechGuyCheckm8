@@ -1,0 +1,153 @@
+name: Encrypted Private Qt Proof
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/encrypted-private-qt-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-private-source:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      TRANSFER_BRANCH: proof/qt-offscreen-runner-v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install PyQt6
+        shell: pwsh
+        run: python -m pip install "PyQt6>=6.7,<7"
+
+      - name: Generate one-run decryption keypair
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force secure-proof | Out-Null
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out secure-proof/private.pem
+          openssl pkey -in secure-proof/private.pem -pubout -out secure-proof/public.pem
+          @{
+            schema = "thetechguy.encrypted-proof-key.v1"
+            run_id = "${{ github.run_id }}"
+            run_attempt = "${{ github.run_attempt }}"
+            commit = "${{ github.sha }}"
+            algorithm = "RSA-3072 OAEP SHA-256 + AES-256-CBC"
+          } | ConvertTo-Json | Set-Content -Encoding utf8 secure-proof/key-receipt.json
+
+      - name: Publish encryption public key
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-proof-public-key-${{ github.run_id }}
+          path: |
+            secure-proof/public.pem
+            secure-proof/key-receipt.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Wait for encrypted source transfer
+        shell: pwsh
+        run: |
+          $Base = "https://raw.githubusercontent.com/${{ github.repository }}/$env:TRANSFER_BRANCH/tools/qt-proof/private-transfer/${{ github.run_id }}"
+          $Ready = $false
+          for ($Attempt = 1; $Attempt -le 120; $Attempt++) {
+            try {
+              Invoke-WebRequest -UseBasicParsing -Uri "$Base/transfer.zip?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile secure-proof/transfer.zip
+              Invoke-WebRequest -UseBasicParsing -Uri "$Base/transfer.zip.sha256?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile secure-proof/transfer.zip.sha256
+              $Expected = ((Get-Content secure-proof/transfer.zip.sha256 -Raw).Trim().Split(' '))[0].ToLowerInvariant()
+              $Actual = (Get-FileHash secure-proof/transfer.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($Expected -eq $Actual) {
+                $Ready = $true
+                break
+              }
+            } catch {
+              # Transfer has not been committed yet.
+            }
+            Start-Sleep -Seconds 10
+          }
+          if (-not $Ready) { throw "Encrypted source transfer did not arrive or failed SHA-256 verification." }
+
+      - name: Decrypt private proof source
+        shell: pwsh
+        run: |
+          Expand-Archive secure-proof/transfer.zip secure-proof/transfer -Force
+          openssl pkeyutl -decrypt -inkey secure-proof/private.pem -in secure-proof/transfer/key.enc -out secure-proof/aes.key -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
+          $KeyHex = ((Get-Content secure-proof/aes.key -Encoding Byte) | ForEach-Object { $_.ToString('x2') }) -join ''
+          $IvHex = (Get-Content secure-proof/transfer/iv.hex -Raw).Trim()
+          openssl enc -d -aes-256-cbc -K $KeyHex -iv $IvHex -in secure-proof/transfer/payload.enc -out secure-proof/source.zip
+          $Manifest = Get-Content secure-proof/transfer/manifest.json -Raw | ConvertFrom-Json
+          $ActualSource = (Get-FileHash secure-proof/source.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($ActualSource -ne $Manifest.source_zip_sha256.ToLowerInvariant()) { throw "Decrypted source ZIP hash mismatch." }
+          Expand-Archive secure-proof/source.zip secure-proof/private-source -Force
+
+      - name: Compile exact private proof surfaces
+        shell: pwsh
+        working-directory: secure-proof/private-source
+        run: |
+          python -m py_compile gui/dev_console_window.py
+          python -m py_compile gui/developer_reporting_dialog.py
+          python -m py_compile gui/apple_ui_style.py
+          python -m py_compile utils/dev_logging.py
+          python -m py_compile utils/diagnostic_reporting.py
+          python -m py_compile scripts/render_dev_console_reporting_visual_proof.py
+
+      - name: Render exact private surfaces at 100 percent
+        shell: pwsh
+        working-directory: secure-proof/private-source
+        env:
+          QT_SCALE_FACTOR: "1.0"
+        run: python scripts/render_dev_console_reporting_visual_proof.py --output proof-output/scale-1.0 --scale 1.0
+
+      - name: Render exact private surfaces at 150 percent
+        shell: pwsh
+        working-directory: secure-proof/private-source
+        env:
+          QT_SCALE_FACTOR: "1.5"
+        run: python scripts/render_dev_console_reporting_visual_proof.py --output proof-output/scale-1.5 --scale 1.5
+
+      - name: Create exact-head proof receipt
+        shell: pwsh
+        run: |
+          $TransferManifest = Get-Content secure-proof/transfer/manifest.json -Raw | ConvertFrom-Json
+          $Receipt = [ordered]@{
+            schema = "thetechguy.encrypted-private-qt-proof.v1"
+            status = "PASS"
+            source_repository = $TransferManifest.source_repository
+            source_branch = $TransferManifest.source_branch
+            source_commit = $TransferManifest.source_commit
+            source_zip_sha256 = $TransferManifest.source_zip_sha256
+            source_files = $TransferManifest.source_files
+            proof_repository = "${{ github.repository }}"
+            proof_run_id = "${{ github.run_id }}"
+            proof_commit = "${{ github.sha }}"
+            qt_platform = "$env:QT_QPA_PLATFORM"
+            transfer_encrypted = $true
+            plaintext_uploaded = $false
+            generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+          }
+          $Receipt | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 secure-proof/private-source/proof-output/exact-head-receipt.json
+
+      - name: Remove transferred plaintext before artifact upload
+        shell: pwsh
+        run: |
+          Copy-Item secure-proof/private-source/proof-output secure-proof/final-proof-output -Recurse -Force
+          Remove-Item secure-proof/private-source -Recurse -Force
+          Remove-Item secure-proof/source.zip, secure-proof/aes.key, secure-proof/private.pem -Force
+
+      - name: Upload screenshots and receipts only
+        uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-private-qt-proof-${{ github.run_id }}
+          path: secure-proof/final-proof-output/**
+          if-no-files-found: error
+          retention-days: 14
