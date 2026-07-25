@@ -1,0 +1,38 @@
+name: Qt Offscreen Proof Smoke
+
+on:
+  push:
+    branches: [proof/qt-offscreen-runner-v1]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install PyQt6
+        shell: pwsh
+        run: python -m pip install "PyQt6>=6.7,<7"
+      - name: Render actual Qt widget tree
+        shell: pwsh
+        run: python tools/qt-proof/render_offscreen_smoke.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qt-offscreen-proof-smoke
+          path: qt-proof-output/**
+          if-no-files-found: error
+          retention-days: 7
