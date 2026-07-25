@@ -56,7 +56,18 @@ jobs:
       - name: Wait for encrypted source transfer
         shell: pwsh
         run: |
-          $Base = "https://raw.githubusercontent.com/${{ github.repository }}/$env:TRANSFER_BRANCH/tools/qt-proof/private-transfer/${{ github.run_id }}"
+          $EncodedRef = [Uri]::EscapeDataString($env:TRANSFER_BRANCH)
+          $ApiBase = "https://api.github.com/repos/${{ github.repository }}/contents/tools/qt-proof/private-transfer/${{ github.run_id }}"
+          $Headers = @{
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+            "User-Agent" = "THETECHGUY-private-visual-proof"
+          }
+          function Read-RepositoryText([string]$Name) {
+            $Response = Invoke-RestMethod -Headers $Headers -Uri "$ApiBase/$Name`?ref=$EncodedRef&nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
+            $Encoded = ($Response.content -replace '\s', '')
+            return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Encoded)).Trim()
+          }
           $Ready = $false
           for ($Attempt = 1; $Attempt -le 120; $Attempt++) {
             try {
@@ -65,8 +76,7 @@ jobs:
               for ($Index = 0; $Index -lt 100; $Index++) {
                 $PartName = "part-$($Index.ToString('00')).b64"
                 try {
-                  $Part = (Invoke-WebRequest -UseBasicParsing -Uri "$Base/$PartName?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())").Content.Trim()
-                  [void]$Builder.Append($Part)
+                  [void]$Builder.Append((Read-RepositoryText $PartName))
                   $PartCount++
                 } catch {
                   if ($Index -eq 0) { throw }
@@ -75,15 +85,15 @@ jobs:
               }
               if ($PartCount -lt 1) { throw "No encrypted transfer parts found." }
               [IO.File]::WriteAllBytes("secure-proof/transfer.zip", [Convert]::FromBase64String($Builder.ToString()))
-              Invoke-WebRequest -UseBasicParsing -Uri "$Base/transfer.zip.sha256?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile secure-proof/transfer.zip.sha256
-              $Expected = ((Get-Content secure-proof/transfer.zip.sha256 -Raw).Trim().Split(' '))[0].ToLowerInvariant()
+              $Checksum = Read-RepositoryText "transfer.zip.sha256"
+              $Expected = ($Checksum.Split(' ', [StringSplitOptions]::RemoveEmptyEntries))[0].ToLowerInvariant()
               $Actual = (Get-FileHash secure-proof/transfer.zip -Algorithm SHA256).Hash.ToLowerInvariant()
               if ($Expected -eq $Actual) {
                 $Ready = $true
                 break
               }
             } catch {
-              # Transfer has not been committed yet or is incomplete.
+              Write-Host "Transfer attempt $Attempt not ready: $($_.Exception.Message)"
             }
             Start-Sleep -Seconds 10
           }
