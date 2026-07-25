@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/private-transfer-diagnostic.yml"
-      - "tools/qt-proof/private-transfer/30147361410/**"
+      - "tools/qt-proof/private-transfer/30148027215/**"
   workflow_dispatch:
 
 permissions:
@@ -22,11 +22,11 @@ jobs:
       - name: Reassemble and verify
         run: |
           mkdir -p transfer-diagnostic
-          cat tools/qt-proof/private-transfer/30147361410/part-*.b64 | base64 -d > transfer-diagnostic/transfer.zip
+          cat tools/qt-proof/private-transfer/30148027215/part-*.b64 | base64 -d > transfer-diagnostic/transfer.zip
           sha256sum transfer-diagnostic/transfer.zip | tee transfer-diagnostic/actual.sha256
-          cat tools/qt-proof/private-transfer/30147361410/transfer.zip.sha256 | tee transfer-diagnostic/expected.sha256
+          cat tools/qt-proof/private-transfer/30148027215/transfer.zip.sha256 | tee transfer-diagnostic/expected.sha256
           ACTUAL=$(sha256sum transfer-diagnostic/transfer.zip | awk '{print $1}')
-          EXPECTED=$(awk '{print $1}' tools/qt-proof/private-transfer/30147361410/transfer.zip.sha256)
+          EXPECTED=$(awk '{print $1}' tools/qt-proof/private-transfer/30148027215/transfer.zip.sha256)
           test "$ACTUAL" = "$EXPECTED"
           unzip -t transfer-diagnostic/transfer.zip | tee transfer-diagnostic/unzip-test.txt
       - uses: actions/upload-artifact@v4
