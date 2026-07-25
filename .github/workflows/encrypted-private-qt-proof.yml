@@ -62,8 +62,10 @@ jobs:
           $Ready = $false
           for ($Attempt = 1; $Attempt -le 120; $Attempt++) {
             try {
-              Invoke-WebRequest -UseBasicParsing -Uri "$Base/transfer.zip?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile secure-proof/transfer.zip
+              Invoke-WebRequest -UseBasicParsing -Uri "$Base/transfer.zip.b64?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile secure-proof/transfer.zip.b64
               Invoke-WebRequest -UseBasicParsing -Uri "$Base/transfer.zip.sha256?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile secure-proof/transfer.zip.sha256
+              $Base64 = (Get-Content secure-proof/transfer.zip.b64 -Raw).Trim()
+              [IO.File]::WriteAllBytes("secure-proof/transfer.zip", [Convert]::FromBase64String($Base64))
               $Expected = ((Get-Content secure-proof/transfer.zip.sha256 -Raw).Trim().Split(' '))[0].ToLowerInvariant()
               $Actual = (Get-FileHash secure-proof/transfer.zip -Algorithm SHA256).Hash.ToLowerInvariant()
               if ($Expected -eq $Actual) {
@@ -127,6 +129,7 @@ jobs:
             source_commit = $TransferManifest.source_commit
             source_zip_sha256 = $TransferManifest.source_zip_sha256
             source_files = $TransferManifest.source_files
+            transfer_scope = $TransferManifest.scope
             proof_repository = "${{ github.repository }}"
             proof_run_id = "${{ github.run_id }}"
             proof_commit = "${{ github.sha }}"
