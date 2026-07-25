@@ -1,10 +1,10 @@
 name: Encrypted Private Qt Proof
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [proof/qt-offscreen-runner-v1]
     paths:
-      - ".github/workflows/encrypted-private-qt-proof.yml"
+      - "tools/qt-proof/private-proof-trigger/**"
   workflow_dispatch:
 
 permissions:
