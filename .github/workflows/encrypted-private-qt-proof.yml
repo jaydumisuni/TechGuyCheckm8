@@ -124,36 +124,60 @@ jobs:
           python -m py_compile scripts/render_dev_console_reporting_visual_proof.py
 
       - name: Render exact private surfaces at 100 percent
+        id: render100
+        continue-on-error: true
         shell: pwsh
         working-directory: secure-proof/private-source
         env:
           QT_SCALE_FACTOR: "1.0"
-        run: python scripts/render_dev_console_reporting_visual_proof.py --output proof-output/scale-1.0 --scale 1.0
+        run: |
+          New-Item -ItemType Directory -Force proof-output/scale-1.0 | Out-Null
+          python scripts/render_dev_console_reporting_visual_proof.py --output proof-output/scale-1.0 --scale 1.0 2>&1 | Tee-Object -FilePath proof-output/scale-1.0/render.log
+          $Code = $LASTEXITCODE
+          "exit_code=$Code" | Add-Content proof-output/scale-1.0/render.log
+          exit $Code
 
       - name: Render exact private surfaces at 150 percent
+        id: render150
+        continue-on-error: true
         shell: pwsh
         working-directory: secure-proof/private-source
         env:
           QT_SCALE_FACTOR: "1.5"
-        run: python scripts/render_dev_console_reporting_visual_proof.py --output proof-output/scale-1.5 --scale 1.5
+        run: |
+          New-Item -ItemType Directory -Force proof-output/scale-1.5 | Out-Null
+          python scripts/render_dev_console_reporting_visual_proof.py --output proof-output/scale-1.5 --scale 1.5 2>&1 | Tee-Object -FilePath proof-output/scale-1.5/render.log
+          $Code = $LASTEXITCODE
+          "exit_code=$Code" | Add-Content proof-output/scale-1.5/render.log
+          exit $Code
 
       - name: Create exact-head proof receipt
+        if: always()
         shell: pwsh
         run: |
-          $TransferManifest = Get-Content secure-proof/transfer/manifest.json -Raw | ConvertFrom-Json
+          New-Item -ItemType Directory -Force secure-proof/private-source/proof-output | Out-Null
+          $TransferManifest = $null
+          if (Test-Path secure-proof/transfer/manifest.json) {
+            $TransferManifest = Get-Content secure-proof/transfer/manifest.json -Raw | ConvertFrom-Json
+          }
+          $Render100 = "${{ steps.render100.outcome }}"
+          $Render150 = "${{ steps.render150.outcome }}"
+          $Status = if ($Render100 -eq "success" -and $Render150 -eq "success") { "PASS" } else { "FAIL" }
           $Receipt = [ordered]@{
             schema = "thetechguy.encrypted-private-qt-proof.v1"
-            status = "PASS"
-            source_repository = $TransferManifest.source_repository
-            source_branch = $TransferManifest.source_branch
-            source_commit = $TransferManifest.source_commit
-            source_zip_sha256 = $TransferManifest.source_zip_sha256
-            source_files = $TransferManifest.source_files
-            transfer_scope = $TransferManifest.scope
+            status = $Status
+            source_repository = if ($TransferManifest) { $TransferManifest.source_repository } else { $null }
+            source_branch = if ($TransferManifest) { $TransferManifest.source_branch } else { $null }
+            source_commit = if ($TransferManifest) { $TransferManifest.source_commit } else { $null }
+            source_zip_sha256 = if ($TransferManifest) { $TransferManifest.source_zip_sha256 } else { $null }
+            source_files = if ($TransferManifest) { $TransferManifest.source_files } else { @() }
+            transfer_scope = if ($TransferManifest) { $TransferManifest.scope } else { $null }
             proof_repository = "${{ github.repository }}"
             proof_run_id = "${{ github.run_id }}"
             proof_commit = "${{ github.sha }}"
             qt_platform = "$env:QT_QPA_PLATFORM"
+            render_100_outcome = $Render100
+            render_150_outcome = $Render150
             transfer_encrypted = $true
             plaintext_uploaded = $false
             generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
@@ -161,16 +185,31 @@ jobs:
           $Receipt | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 secure-proof/private-source/proof-output/exact-head-receipt.json
 
       - name: Remove transferred plaintext before artifact upload
+        if: always()
         shell: pwsh
         run: |
-          Copy-Item secure-proof/private-source/proof-output secure-proof/final-proof-output -Recurse -Force
-          Remove-Item secure-proof/private-source -Recurse -Force
-          Remove-Item secure-proof/source.zip, secure-proof/aes.key, secure-proof/private.pem -Force
+          New-Item -ItemType Directory -Force secure-proof/final-proof-output | Out-Null
+          if (Test-Path secure-proof/private-source/proof-output) {
+            Copy-Item secure-proof/private-source/proof-output/* secure-proof/final-proof-output -Recurse -Force
+          }
+          if (Test-Path secure-proof/private-source) { Remove-Item secure-proof/private-source -Recurse -Force }
+          foreach ($Path in @("secure-proof/source.zip", "secure-proof/aes.key", "secure-proof/private.pem")) {
+            if (Test-Path $Path) { Remove-Item $Path -Force }
+          }
 
-      - name: Upload screenshots and receipts only
+      - name: Upload screenshots, logs and receipts only
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: encrypted-private-qt-proof-${{ github.run_id }}
           path: secure-proof/final-proof-output/**
           if-no-files-found: error
           retention-days: 14
+
+      - name: Enforce visual proof result
+        if: always()
+        shell: pwsh
+        run: |
+          if ("${{ steps.render100.outcome }}" -ne "success" -or "${{ steps.render150.outcome }}" -ne "success") {
+            throw "One or more exact private Qt visual proof renders failed. Inspect the uploaded proof logs."
+          }
