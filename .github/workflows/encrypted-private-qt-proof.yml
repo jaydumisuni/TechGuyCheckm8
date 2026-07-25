@@ -104,7 +104,7 @@ jobs:
         run: |
           Expand-Archive secure-proof/transfer.zip secure-proof/transfer -Force
           openssl pkeyutl -decrypt -inkey secure-proof/private.pem -in secure-proof/transfer/key.enc -out secure-proof/aes.key -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
-          $KeyHex = ((Get-Content secure-proof/aes.key -Encoding Byte) | ForEach-Object { $_.ToString('x2') }) -join ''
+          $KeyHex = ([IO.File]::ReadAllBytes("secure-proof/aes.key") | ForEach-Object { $_.ToString('x2') }) -join ''
           $IvHex = (Get-Content secure-proof/transfer/iv.hex -Raw).Trim()
           openssl enc -d -aes-256-cbc -K $KeyHex -iv $IvHex -in secure-proof/transfer/payload.enc -out secure-proof/source.zip
           $Manifest = Get-Content secure-proof/transfer/manifest.json -Raw | ConvertFrom-Json
