@@ -62,10 +62,22 @@ jobs:
           $Ready = $false
           for ($Attempt = 1; $Attempt -le 120; $Attempt++) {
             try {
-              Invoke-WebRequest -UseBasicParsing -Uri "$Base/transfer.zip.b64?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile secure-proof/transfer.zip.b64
+              $Builder = New-Object System.Text.StringBuilder
+              $PartCount = 0
+              for ($Index = 0; $Index -lt 100; $Index++) {
+                $PartName = "part-$($Index.ToString('00')).b64"
+                try {
+                  $Part = (Invoke-WebRequest -UseBasicParsing -Uri "$Base/$PartName?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())").Content.Trim()
+                  [void]$Builder.Append($Part)
+                  $PartCount++
+                } catch {
+                  if ($Index -eq 0) { throw }
+                  break
+                }
+              }
+              if ($PartCount -lt 1) { throw "No encrypted transfer parts found." }
+              [IO.File]::WriteAllBytes("secure-proof/transfer.zip", [Convert]::FromBase64String($Builder.ToString()))
               Invoke-WebRequest -UseBasicParsing -Uri "$Base/transfer.zip.sha256?nonce=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile secure-proof/transfer.zip.sha256
-              $Base64 = (Get-Content secure-proof/transfer.zip.b64 -Raw).Trim()
-              [IO.File]::WriteAllBytes("secure-proof/transfer.zip", [Convert]::FromBase64String($Base64))
               $Expected = ((Get-Content secure-proof/transfer.zip.sha256 -Raw).Trim().Split(' '))[0].ToLowerInvariant()
               $Actual = (Get-FileHash secure-proof/transfer.zip -Algorithm SHA256).Hash.ToLowerInvariant()
               if ($Expected -eq $Actual) {
@@ -73,7 +85,7 @@ jobs:
                 break
               }
             } catch {
-              # Transfer has not been committed yet.
+              # Transfer has not been committed yet or is incomplete.
             }
             Start-Sleep -Seconds 10
           }
