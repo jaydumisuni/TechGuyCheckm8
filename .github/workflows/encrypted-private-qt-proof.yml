@@ -36,7 +36,7 @@ jobs:
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out secure-proof/private.pem
           openssl pkey -in secure-proof/private.pem -pubout -out secure-proof/public.pem
           @{
-            schema = "thetechguy.encrypted-proof-key.v1"
+            schema = "thetechguy.encrypted-proof-key.v2"
             run_id = "${{ github.run_id }}"
             run_attempt = "${{ github.run_attempt }}"
             commit = "${{ github.sha }}"
@@ -88,10 +88,7 @@ jobs:
               $Checksum = Read-RepositoryText "transfer.zip.sha256"
               $Expected = ($Checksum.Split(' ', [StringSplitOptions]::RemoveEmptyEntries))[0].ToLowerInvariant()
               $Actual = (Get-FileHash secure-proof/transfer.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-              if ($Expected -eq $Actual) {
-                $Ready = $true
-                break
-              }
+              if ($Expected -eq $Actual) { $Ready = $true; break }
             } catch {
               Write-Host "Transfer attempt $Attempt not ready: $($_.Exception.Message)"
             }
@@ -112,46 +109,27 @@ jobs:
           if ($ActualSource -ne $Manifest.source_zip_sha256.ToLowerInvariant()) { throw "Decrypted source ZIP hash mismatch." }
           Expand-Archive secure-proof/source.zip secure-proof/private-source -Force
 
-      - name: Compile exact private proof surfaces
+      - name: Compile transferred private proof package
         shell: pwsh
         working-directory: secure-proof/private-source
         run: |
-          python -m py_compile gui/dev_console_window.py
-          python -m py_compile gui/developer_reporting_dialog.py
-          python -m py_compile gui/apple_ui_style.py
-          python -m py_compile utils/dev_logging.py
-          python -m py_compile utils/diagnostic_reporting.py
-          python -m py_compile scripts/render_dev_console_reporting_visual_proof.py
+          $Files = Get-ChildItem -Recurse -Filter *.py | ForEach-Object { $_.FullName }
+          if (-not $Files) { throw "No Python proof files were transferred." }
+          python -m py_compile $Files
 
-      - name: Render exact private surfaces at 100 percent
-        id: render100
+      - name: Render private proof package
+        id: render
         continue-on-error: true
         shell: pwsh
         working-directory: secure-proof/private-source
-        env:
-          QT_SCALE_FACTOR: "1.0"
         run: |
-          New-Item -ItemType Directory -Force proof-output/scale-1.0 | Out-Null
-          python scripts/render_dev_console_reporting_visual_proof.py --output proof-output/scale-1.0 --scale 1.0 2>&1 | Tee-Object -FilePath proof-output/scale-1.0/render.log
+          New-Item -ItemType Directory -Force proof-output | Out-Null
+          python -m scripts.render_workspace_unification_fixture --output proof-output 2>&1 | Tee-Object -FilePath proof-output/render.log
           $Code = $LASTEXITCODE
-          "exit_code=$Code" | Add-Content proof-output/scale-1.0/render.log
+          "exit_code=$Code" | Add-Content proof-output/render.log
           exit $Code
 
-      - name: Render exact private surfaces at 150 percent
-        id: render150
-        continue-on-error: true
-        shell: pwsh
-        working-directory: secure-proof/private-source
-        env:
-          QT_SCALE_FACTOR: "1.5"
-        run: |
-          New-Item -ItemType Directory -Force proof-output/scale-1.5 | Out-Null
-          python scripts/render_dev_console_reporting_visual_proof.py --output proof-output/scale-1.5 --scale 1.5 2>&1 | Tee-Object -FilePath proof-output/scale-1.5/render.log
-          $Code = $LASTEXITCODE
-          "exit_code=$Code" | Add-Content proof-output/scale-1.5/render.log
-          exit $Code
-
-      - name: Create exact-head proof receipt
+      - name: Create encrypted-transfer proof receipt
         if: always()
         shell: pwsh
         run: |
@@ -160,11 +138,10 @@ jobs:
           if (Test-Path secure-proof/transfer/manifest.json) {
             $TransferManifest = Get-Content secure-proof/transfer/manifest.json -Raw | ConvertFrom-Json
           }
-          $Render100 = "${{ steps.render100.outcome }}"
-          $Render150 = "${{ steps.render150.outcome }}"
-          $Status = if ($Render100 -eq "success" -and $Render150 -eq "success") { "PASS" } else { "FAIL" }
+          $Render = "${{ steps.render.outcome }}"
+          $Status = if ($Render -eq "success") { "PASS" } else { "FAIL" }
           $Receipt = [ordered]@{
-            schema = "thetechguy.encrypted-private-qt-proof.v1"
+            schema = "thetechguy.encrypted-private-qt-proof.v2"
             status = $Status
             source_repository = if ($TransferManifest) { $TransferManifest.source_repository } else { $null }
             source_branch = if ($TransferManifest) { $TransferManifest.source_branch } else { $null }
@@ -176,13 +153,12 @@ jobs:
             proof_run_id = "${{ github.run_id }}"
             proof_commit = "${{ github.sha }}"
             qt_platform = "$env:QT_QPA_PLATFORM"
-            render_100_outcome = $Render100
-            render_150_outcome = $Render150
+            render_outcome = $Render
             transfer_encrypted = $true
             plaintext_uploaded = $false
             generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
           }
-          $Receipt | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 secure-proof/private-source/proof-output/exact-head-receipt.json
+          $Receipt | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 secure-proof/private-source/proof-output/encrypted-transfer-receipt.json
 
       - name: Remove transferred plaintext before artifact upload
         if: always()
@@ -210,6 +186,6 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          if ("${{ steps.render100.outcome }}" -ne "success" -or "${{ steps.render150.outcome }}" -ne "success") {
-            throw "One or more exact private Qt visual proof renders failed. Inspect the uploaded proof logs."
+          if ("${{ steps.render.outcome }}" -ne "success") {
+            throw "The encrypted private Qt visual proof failed. Inspect the uploaded proof logs."
           }
