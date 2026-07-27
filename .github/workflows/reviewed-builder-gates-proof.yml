@@ -1,0 +1,117 @@
+name: Reviewed Builder Gates Proof
+
+on:
+  push:
+    branches: [proof/reviewed-builder-gates-v1]
+    paths:
+      - ".github/workflows/reviewed-builder-gates-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-proof:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout public Builder integration branch
+        uses: actions/checkout@v4
+        with:
+          repository: jaydumisuni/thetechguy-software-builder
+          ref: feature/tgcheckm8-reviewed-clone-build-v1
+          path: builder
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Compile reviewed Builder gates
+        working-directory: builder
+        shell: pwsh
+        run: |
+          python -m py_compile `
+            scripts/run_reviewed_tgcheckm8_clone_build.py `
+            scripts/run_project_preflight.py `
+            tests/test_reviewed_tgcheckm8_builder.py
+
+      - name: Run reviewed Builder regression suite
+        working-directory: builder
+        shell: pwsh
+        run: python -m unittest -v tests.test_reviewed_tgcheckm8_builder
+
+      - name: Prove ordinary project remains allowed
+        working-directory: builder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force proof/ordinary | Out-Null
+          python scripts/run_project_preflight.py --project proof/ordinary --output build_config/preflight.json
+          $Receipt = Get-Content proof/ordinary/build_config/preflight.json -Raw | ConvertFrom-Json
+          if ($Receipt.status -ne "PASS" -or $Receipt.configured -ne $false -or $Receipt.executed -ne $false) {
+            throw "Ordinary project no-preflight behavior changed"
+          }
+
+      - name: Prove declared failing preflight blocks without shell
+        working-directory: builder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force proof/blocked/scripts | Out-Null
+          @'
+          import json
+          from pathlib import Path
+          Path("build_config").mkdir(exist_ok=True)
+          Path("build_config/project-check.json").write_text(json.dumps({"status":"BLOCKED","build_allowed":False}))
+          raise SystemExit(2)
+          '@ | Set-Content -Encoding utf8 proof/blocked/scripts/check.py
+          @'
+          {
+            "reviewGates": {
+              "preflightCommand": "python scripts/check.py"
+            }
+          }
+          '@ | Set-Content -Encoding utf8 proof/blocked/techguy-build.json
+          python scripts/run_project_preflight.py --project proof/blocked --output build_config/preflight.json
+          if ($LASTEXITCODE -ne 2) { throw "Declared failing preflight did not return blocked code 2" }
+          $Receipt = Get-Content proof/blocked/build_config/preflight.json -Raw | ConvertFrom-Json
+          if ($Receipt.status -ne "BLOCKED" -or $Receipt.executed -ne $true -or $Receipt.shellUsed -ne $false) {
+            throw "Declared preflight blocking receipt is invalid"
+          }
+
+      - name: Create regression receipt
+        if: always()
+        working-directory: builder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force proof-output | Out-Null
+          $Receipt = [ordered]@{
+            schema = "thetechguy.reviewed-builder-regression-proof.v1"
+            status = if ("${{ job.status }}" -eq "success") { "PASS" } else { "FAIL" }
+            builder_repository = "jaydumisuni/thetechguy-software-builder"
+            builder_branch = "feature/tgcheckm8-reviewed-clone-build-v1"
+            builder_commit = (git rev-parse HEAD)
+            proof_repository = "${{ github.repository }}"
+            proof_run_id = "${{ github.run_id }}"
+            runner = "${{ runner.os }}"
+            python = (python --version)
+            source_compiled = $true
+            unit_tests_requested = $true
+            no_shell_preflight = $true
+            preflight_before_plan = $true
+            token_in_clone_url = $false
+            build_started = $false
+            installer_started = $false
+            driver_installed = $false
+            device_operation_executed = $false
+          }
+          $Receipt | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 proof-output/receipt.json
+
+      - name: Upload regression receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-builder-gates-proof-${{ github.run_id }}
+          path: builder/proof-output/receipt.json
+          if-no-files-found: error
+          retention-days: 30
