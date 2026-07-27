@@ -1,0 +1,251 @@
+name: Reviewed Windows Apple Tools Build
+
+on:
+  push:
+    branches: [build/reviewed-windows-apple-tools-v1]
+    paths:
+      - ".github/workflows/reviewed-windows-apple-tools-build.yml"
+      - "tools/apple-build/make_windows_receipt.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/reviewed-windows-apple-tools-build.yml"
+      - "tools/apple-build/make_windows_receipt.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: reviewed-windows-apple-tools-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GASTER_COMMIT: 7fffffff38a1bed1cdc1c5bae0df70f14395129b
+  IRECOVERY_COMMIT: 04d04f7cbaa4696504e91c1478ddd56160ed6776
+  GLUE_COMMIT: da770a7687f35fbb981db4d7b47b1b032cd5c2c7
+  PLIST_COMMIT: 32428abacb909988e8e960a8845a6430b17b6a60
+  BUILD_ROOT: ${{ github.workspace }}\.apple-tool-build-windows
+
+jobs:
+  build-windows-x86_64:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install pinned Windows build toolchain
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            autoconf
+            automake
+            libtool
+            pkgconf
+            vim
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-readline
+            mingw-w64-x86_64-libxml2
+
+      - name: Prepare isolated output
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          ROOT=$(cygpath -u "$BUILD_ROOT")
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT/src" "$ROOT/prefix" "$ROOT/out/bin" "$ROOT/out/runtime" "$ROOT/out/licenses"
+          {
+            echo "runner=${RUNNER_OS:-unknown}"
+            echo "uname=$(uname -a)"
+            echo "gcc=$(gcc --version | head -1)"
+            echo "make=$(make --version | head -1)"
+            echo "pkg-config=$(pkg-config --version)"
+          } | tee "$ROOT/out/build.log"
+          pacman -Q | sort > "$ROOT/out/msys2-packages.txt"
+
+      - name: Build pinned Gaster for Windows
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          ROOT=$(cygpath -u "$BUILD_ROOT")
+          SRC="$ROOT/src/gaster"
+          {
+            git clone https://github.com/0x7ff/gaster.git "$SRC"
+            git -C "$SRC" checkout --detach "$GASTER_COMMIT"
+            test "$(git -C "$SRC" rev-parse HEAD)" = "$GASTER_COMMIT"
+            test -z "$(git -C "$SRC" status --porcelain)"
+            make -C "$SRC" libusb CC=gcc
+            test -s "$SRC/gaster.exe"
+            cp "$SRC/gaster.exe" "$ROOT/out/bin/gaster.exe"
+            cp "$SRC/LICENSE" "$ROOT/out/licenses/GASTER-APACHE-2.0.txt"
+          } 2>&1 | tee -a "$ROOT/out/build.log"
+
+      - name: Build pinned libplist
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          ROOT=$(cygpath -u "$BUILD_ROOT")
+          SRC="$ROOT/src/libplist"
+          PREFIX="$ROOT/prefix"
+          {
+            git clone https://github.com/libimobiledevice/libplist.git "$SRC"
+            git -C "$SRC" checkout --detach "$PLIST_COMMIT"
+            test "$(git -C "$SRC" rev-parse HEAD)" = "$PLIST_COMMIT"
+            test -z "$(git -C "$SRC" status --porcelain)"
+            cd "$SRC"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared --without-cython --without-tools --without-tests
+            make -j2
+            make install
+            cp COPYING "$ROOT/out/licenses/LIBPLIST-LGPL-2.1.txt"
+          } 2>&1 | tee -a "$ROOT/out/build.log"
+
+      - name: Build pinned libimobiledevice-glue
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          ROOT=$(cygpath -u "$BUILD_ROOT")
+          SRC="$ROOT/src/glue"
+          PREFIX="$ROOT/prefix"
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:/mingw64/lib/pkgconfig"
+          export CPPFLAGS="-I$PREFIX/include"
+          export LDFLAGS="-L$PREFIX/lib"
+          {
+            git clone https://github.com/libimobiledevice/libimobiledevice-glue.git "$SRC"
+            git -C "$SRC" checkout --detach "$GLUE_COMMIT"
+            test "$(git -C "$SRC" rev-parse HEAD)" = "$GLUE_COMMIT"
+            test -z "$(git -C "$SRC" status --porcelain)"
+            cd "$SRC"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared
+            make -j2
+            make install
+            cp COPYING "$ROOT/out/licenses/LIBIMOBILEDEVICE-GLUE-LGPL-2.1.txt"
+          } 2>&1 | tee -a "$ROOT/out/build.log"
+
+      - name: Build pinned iRecovery for Windows
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          ROOT=$(cygpath -u "$BUILD_ROOT")
+          SRC="$ROOT/src/libirecovery"
+          PREFIX="$ROOT/prefix"
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:/mingw64/lib/pkgconfig"
+          export CPPFLAGS="-I$PREFIX/include"
+          export LDFLAGS="-L$PREFIX/lib"
+          {
+            git clone https://github.com/libimobiledevice/libirecovery.git "$SRC"
+            git -C "$SRC" checkout --detach "$IRECOVERY_COMMIT"
+            test "$(git -C "$SRC" rev-parse HEAD)" = "$IRECOVERY_COMMIT"
+            test -z "$(git -C "$SRC" status --porcelain)"
+            cd "$SRC"
+            ./autogen.sh --prefix="$PREFIX" --enable-static --disable-shared --with-tools=yes --without-udev
+            make -j2
+            test -s tools/irecovery.exe
+            cp tools/irecovery.exe "$ROOT/out/bin/irecovery.exe"
+            cp COPYING "$ROOT/out/licenses/LIBIRECOVERY-LGPL-2.1.txt"
+          } 2>&1 | tee -a "$ROOT/out/build.log"
+
+      - name: Inventory and stage runtime DLLs
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          ROOT=$(cygpath -u "$BUILD_ROOT")
+          OUT="$ROOT/out"
+          : > "$OUT/dependencies.txt"
+          for executable in "$OUT/bin/gaster.exe" "$OUT/bin/irecovery.exe"; do
+            echo "--- $(basename "$executable") ---" | tee -a "$OUT/dependencies.txt"
+            ldd "$executable" | tee -a "$OUT/dependencies.txt"
+          done
+          grep -Eo '/mingw64/bin/[^ ]+\.dll' "$OUT/dependencies.txt" | sort -u > "$OUT/runtime-dll-paths.txt" || true
+          while IFS= read -r dll; do
+            test -f "$dll"
+            cp "$dll" "$OUT/runtime/"
+          done < "$OUT/runtime-dll-paths.txt"
+          test "$(find "$OUT/runtime" -maxdepth 1 -type f -name '*.dll' | wc -l)" -gt 0
+          for candidate in \
+            /mingw64/share/licenses/libusb/COPYING \
+            /mingw64/share/licenses/openssl/LICENSE.txt \
+            /mingw64/share/licenses/gcc-libs/COPYING.RUNTIME; do
+            if test -f "$candidate"; then
+              cp "$candidate" "$OUT/licenses/$(basename "$(dirname "$candidate")")-$(basename "$candidate")"
+            fi
+          done
+
+      - name: Generate exact Windows build receipt
+        shell: pwsh
+        run: |
+          $Out = Join-Path $env:BUILD_ROOT "out"
+          python tools/apple-build/make_windows_receipt.py `
+            --output-dir $Out `
+            --gaster (Join-Path $Out "bin\gaster.exe") `
+            --irecovery (Join-Path $Out "bin\irecovery.exe") `
+            --runtime-dir (Join-Path $Out "runtime") `
+            --gaster-commit $env:GASTER_COMMIT `
+            --irecovery-commit $env:IRECOVERY_COMMIT `
+            --glue-commit $env:GLUE_COMMIT `
+            --plist-commit $env:PLIST_COMMIT `
+            --build-log (Join-Path $Out "build.log") `
+            --dependency-log (Join-Path $Out "dependencies.txt") `
+            --package-lock (Join-Path $Out "msys2-packages.txt")
+          python -m json.tool (Join-Path $Out "windows-build-receipt.json") | Out-Null
+
+      - name: Verify hashes and package artifact
+        shell: pwsh
+        run: |
+          $Out = Join-Path $env:BUILD_ROOT "out"
+          $Receipt = Get-Content (Join-Path $Out "windows-build-receipt.json") -Raw | ConvertFrom-Json
+          if (-not $Receipt.review_checks.pe_x86_64_only) { throw "Non-x86_64 output detected" }
+          if ($Receipt.review_checks.device_operation_executed) { throw "Hosted build must never execute a device operation" }
+          if ($Receipt.review_checks.driver_installed) { throw "Hosted build must not install a driver" }
+          Compress-Archive -Path (Join-Path $Out "*") -DestinationPath (Join-Path $env:BUILD_ROOT "tgcheckm8-apple-tools-windows-x86_64.zip") -Force
+
+      - name: Upload reviewed Windows tools and receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tgcheckm8-apple-tools-windows-x86_64
+          path: |
+            .apple-tool-build-windows/out/**
+            .apple-tool-build-windows/tgcheckm8-apple-tools-windows-x86_64.zip
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish receipt summary
+        if: success() && github.event_name == 'pull_request'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $Out = Join-Path $env:BUILD_ROOT "out"
+          $Receipt = Get-Content (Join-Path $Out "windows-build-receipt.json") -Raw | ConvertFrom-Json
+          $Gaster = $Receipt.outputs | Where-Object role -eq "gaster_windows_executable"
+          $IRecovery = $Receipt.outputs | Where-Object role -eq "irecovery_windows_executable"
+          $Body = @"
+          <!-- reviewed-windows-apple-tools-receipt -->
+          ## Reviewed Windows Apple tools receipt
+
+          - Host: Windows x86_64, MSYS2 MinGW-w64
+          - Gaster SHA-256: ``$($Gaster.sha256)`` ($($Gaster.byte_len) bytes)
+          - iRecovery SHA-256: ``$($IRecovery.sha256)`` ($($IRecovery.byte_len) bytes)
+          - Source pins: Gaster ``$env:GASTER_COMMIT``, iRecovery ``$env:IRECOVERY_COMMIT``, glue ``$env:GLUE_COMMIT``, libplist ``$env:PLIST_COMMIT``
+          - Runtime DLL inventory and package lock: recorded
+          - Usage-only smoke tests: PASS
+          - Device operation executed: no
+          - Driver installed: no
+          - Stable promotion authorised: no
+          - Artifact: ``tgcheckm8-apple-tools-windows-x86_64``
+          "@
+          gh pr comment $env:PR_NUMBER --body $Body --edit-last --create-if-none
