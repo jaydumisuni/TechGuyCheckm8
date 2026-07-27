@@ -5,6 +5,10 @@ on:
     branches: [proof/reviewed-builder-gates-v1]
     paths:
       - ".github/workflows/reviewed-builder-gates-proof.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/reviewed-builder-gates-proof.yml"
   workflow_dispatch:
 
 permissions:
@@ -58,20 +62,20 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force proof/blocked/scripts | Out-Null
-          @'
-          import json
-          from pathlib import Path
-          Path("build_config").mkdir(exist_ok=True)
-          Path("build_config/project-check.json").write_text(json.dumps({"status":"BLOCKED","build_allowed":False}))
-          raise SystemExit(2)
-          '@ | Set-Content -Encoding utf8 proof/blocked/scripts/check.py
-          @'
-          {
-            "reviewGates": {
-              "preflightCommand": "python scripts/check.py"
-            }
-          }
-          '@ | Set-Content -Encoding utf8 proof/blocked/techguy-build.json
+          @(
+            'import json',
+            'from pathlib import Path',
+            'Path("build_config").mkdir(exist_ok=True)',
+            'Path("build_config/project-check.json").write_text(json.dumps({"status":"BLOCKED","build_allowed":False}))',
+            'raise SystemExit(2)'
+          ) | Set-Content -Encoding utf8 proof/blocked/scripts/check.py
+          @(
+            '{',
+            '  "reviewGates": {',
+            '    "preflightCommand": "python scripts/check.py"',
+            '  }',
+            '}'
+          ) | Set-Content -Encoding utf8 proof/blocked/techguy-build.json
           python scripts/run_project_preflight.py --project proof/blocked --output build_config/preflight.json
           if ($LASTEXITCODE -ne 2) { throw "Declared failing preflight did not return blocked code 2" }
           $Receipt = Get-Content proof/blocked/build_config/preflight.json -Raw | ConvertFrom-Json
