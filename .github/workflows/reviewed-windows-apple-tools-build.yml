@@ -144,7 +144,7 @@ jobs:
           SRC="$ROOT/src/libirecovery"
           PREFIX="$ROOT/prefix"
           export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:/mingw64/lib/pkgconfig"
-          export CPPFLAGS="-I$PREFIX/include"
+          export CPPFLAGS="-I$PREFIX/include -DLIMD_GLUE_STATIC"
           export LDFLAGS="-L$PREFIX/lib"
           {
             git clone https://github.com/libimobiledevice/libirecovery.git "$SRC"
