@@ -55,11 +55,14 @@ jobs:
 
       - name: Wait for encrypted source transfer
         shell: pwsh
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
         run: |
           $EncodedRef = [Uri]::EscapeDataString($env:TRANSFER_BRANCH)
           $ApiBase = "https://api.github.com/repos/${{ github.repository }}/contents/tools/qt-proof/private-transfer/${{ github.run_id }}"
           $Headers = @{
             Accept = "application/vnd.github+json"
+            Authorization = "Bearer $env:GH_READ_TOKEN"
             "X-GitHub-Api-Version" = "2022-11-28"
             "User-Agent" = "THETECHGUY-private-visual-proof"
           }
