@@ -17,6 +17,7 @@ This matrix records what each researched project contributes, how it may be inte
 | BigBroActivator concept | Technician workflow, staged ramdisk/SSH operations and checkpoints | Reimplement job orchestration and mount graph | Source not verified | No binary reuse; workflow concept only |
 | pyAR2SISV concept | Structured activation-artifact parsing and validation | Clean Rust parser for same-device preservation/restoration | Exact source not located | No code reuse until source/licence is verified |
 | modern jailbreak providers | A12/A13 and later firmware-specific routes | Optional provider packs behind exact manifests | Provider/version dependent | Pin official source/release, licence, hash and supported matrix |
+| Local UnlockTool installation (2026-07-31) | Sanitized Apple ramdisk workflow observations | Research-only contract input; no implementation or binary reuse | Static local evidence only; behavior not independently reproduced | No redistribution, no raw logs, no account/device identifiers; see [static observation note](research/unlocktool-static-ramdisk-observations-2026-07-31.md) |
 
 ## Capability families
 
