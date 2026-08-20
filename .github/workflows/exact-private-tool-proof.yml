@@ -7,6 +7,14 @@ on:
     paths:
       - .github/workflows/exact-private-tool-proof.yml
       - tools/qt-proof/exact-private-trigger.txt
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+    paths:
+      - .github/workflows/exact-private-tool-proof.yml
+      - tools/qt-proof/exact-private-trigger.txt
 
 permissions:
   contents: read
@@ -148,7 +156,7 @@ RBEBh2fmY/gxv9Dvg7C5Uhqt2sOxGWZElDMFIt4tJmXPAgMBAAE=
 -----END PUBLIC KEY-----
 '@ | Set-Content -Encoding ascii secure/evidence-public.pem
 
-          openssl rand 32 | Set-Content -Encoding Byte secure/aes.key
+          openssl rand -out secure/aes.key 32
           $IvHex = (openssl rand -hex 16).Trim()
           $KeyHex = ([IO.File]::ReadAllBytes("secure/aes.key") | ForEach-Object { $_.ToString('x2') }) -join ''
           openssl enc -aes-256-cbc -K $KeyHex -iv $IvHex -in secure/evidence.zip -out secure/final/payload.enc
