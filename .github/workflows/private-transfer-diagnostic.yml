@@ -1,0 +1,38 @@
+name: Private Transfer Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/private-transfer-diagnostic.yml"
+      - "tools/qt-proof/private-transfer/30148027215/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reassemble and verify
+        run: |
+          mkdir -p transfer-diagnostic
+          cat tools/qt-proof/private-transfer/30148027215/part-*.b64 | base64 -d > transfer-diagnostic/transfer.zip
+          sha256sum transfer-diagnostic/transfer.zip | tee transfer-diagnostic/actual.sha256
+          cat tools/qt-proof/private-transfer/30148027215/transfer.zip.sha256 | tee transfer-diagnostic/expected.sha256
+          ACTUAL=$(sha256sum transfer-diagnostic/transfer.zip | awk '{print $1}')
+          EXPECTED=$(awk '{print $1}' tools/qt-proof/private-transfer/30148027215/transfer.zip.sha256)
+          test "$ACTUAL" = "$EXPECTED"
+          unzip -t transfer-diagnostic/transfer.zip | tee transfer-diagnostic/unzip-test.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: private-transfer-diagnostic
+          path: transfer-diagnostic/**
+          if-no-files-found: error
+          retention-days: 2
