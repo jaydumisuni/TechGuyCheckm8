@@ -279,6 +279,9 @@ pub fn build_purple_boot_plan(
     if request.pwn_proof.host_mode != DeviceMode::PwnedDfu
         || request.pwn_proof.host_pwn_provider.as_deref() != Some("usbliter8")
         || !request.pwn_proof.failures.is_empty()
+        || request.pwn_proof.node_id.trim().is_empty()
+        || validate_sha256(&request.pwn_proof.firmware_sha256).is_err()
+        || validate_sha256(&request.pwn_proof.board_log_sha256).is_err()
     {
         return Err(PurpleBootError::InconsistentPwnProof);
     }
