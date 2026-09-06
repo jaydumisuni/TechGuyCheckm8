@@ -381,6 +381,7 @@ pub fn execute_current_process_step(
             "iRecovery step {} failed or did not clean up",
             runtime.next_step
         ));
+        runtime.process_receipts.push(receipt.clone());
         return Err(RamdiskBootError::ProcessStepFailed {
             step_index: receipt.step_index,
             status_code: receipt.status_code,
