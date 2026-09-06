@@ -271,6 +271,9 @@ pub fn build_pwn_plan(
     if !missing.is_empty() {
         return Err(Usbliter8Error::MissingPermissions(missing));
     }
+    if request.granted_permissions != required {
+        return Err(Usbliter8Error::PermissionGrantMismatch);
+    }
 
     let firmware_sha256 = manifest
         .uf2_sha256
@@ -622,6 +625,8 @@ pub enum Usbliter8Error {
     IncompletePhysicalHandoff,
     #[error("hardware-pwn stage is missing permissions: {0:?}")]
     MissingPermissions(Vec<Permission>),
+    #[error("hardware-pwn stage permissions must exactly match the fixed grant")]
+    PermissionGrantMismatch,
     #[error("board log exceeds the maximum size: {0} bytes")]
     BoardLogTooLarge(usize),
     #[error("board log is not valid UTF-8")]
