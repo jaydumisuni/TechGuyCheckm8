@@ -476,7 +476,8 @@ pub fn finalize_runtime(
         blockers.push("one or more iRecovery process receipts are unverified".to_owned());
     }
     if !process_receipt_sequence_verified(runtime, pack) {
-        blockers.push("iRecovery process receipt sequence does not exactly match boot plan".to_owned());
+        blockers
+            .push("iRecovery process receipt sequence does not exactly match boot plan".to_owned());
     }
 
     RamdiskBootFinalProof {
