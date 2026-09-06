@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tg_apple_observe::{match_reconnect, LockedDeviceIdentity, ObservedAppleDevice};
 use tg_contracts::{DeviceMode, Maturity, Permission};
-use tg_process::{run_supervised, ProcessPolicy, ProcessSpec, SupervisedOutcome};
+use tg_process::{
+    run_supervised, ProcessPolicy, ProcessSpec, SupervisedOutcome, TerminationReason,
+};
 use uuid::Uuid;
 
 pub const GASTER_PROVIDER_VERSION: &str = "tgcheckm8.gaster-provider.v1";
@@ -88,6 +90,8 @@ pub struct GasterRunReceipt {
     pub engine_id: String,
     pub action: GasterAction,
     pub executable_sha256: String,
+    #[serde(with = "termination_reason_serde")]
+    pub termination: TerminationReason,
     pub status_code: Option<i32>,
     pub process_success: bool,
     pub cleanup_verified: bool,
@@ -98,6 +102,9 @@ pub struct GasterRunReceipt {
     pub stdout_truncated: bool,
     pub stderr_truncated: bool,
     pub elapsed_millis: u128,
+    pub timeout_millis: u128,
+    pub max_stdout_bytes: usize,
+    pub max_stderr_bytes: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -254,7 +261,12 @@ pub fn execute_action(
             working_directory: request.working_directory.clone(),
         },
     )?;
-    Ok(receipt(request.plan, request.action.clone(), outcome))
+    Ok(receipt(
+        policy,
+        request.plan,
+        request.action.clone(),
+        outcome,
+    ))
 }
 
 pub fn verify_pwnd_reconnect(
@@ -308,6 +320,7 @@ pub fn verify_pwnd_reconnect(
 }
 
 fn receipt(
+    policy: &ProcessPolicy,
     plan: &GasterPwnPlan,
     action: GasterAction,
     outcome: SupervisedOutcome,
@@ -317,6 +330,7 @@ fn receipt(
         engine_id: plan.engine_id.clone(),
         action,
         executable_sha256: plan.executable_sha256.clone(),
+        termination: outcome.termination,
         status_code: outcome.status_code,
         process_success: outcome.success,
         cleanup_verified: outcome.cleanup.verified(),
@@ -327,6 +341,9 @@ fn receipt(
         stdout_truncated: outcome.stdout.truncated,
         stderr_truncated: outcome.stderr.truncated,
         elapsed_millis: outcome.elapsed_millis,
+        timeout_millis: policy.timeout.as_millis(),
+        max_stdout_bytes: policy.max_stdout_bytes,
+        max_stderr_bytes: policy.max_stderr_bytes,
     }
 }
 
@@ -376,6 +393,36 @@ fn to_hex(bytes: &[u8]) -> String {
         output.push(HEX[(byte & 0x0f) as usize] as char);
     }
     output
+}
+
+mod termination_reason_serde {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use tg_process::TerminationReason;
+
+    pub fn serialize<S>(value: &TerminationReason, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let value = match value {
+            TerminationReason::Exited => "exited",
+            TerminationReason::TimeoutKilled => "timeout_killed",
+        };
+        serializer.serialize_str(value)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<TerminationReason, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "exited" => Ok(TerminationReason::Exited),
+            "timeout_killed" => Ok(TerminationReason::TimeoutKilled),
+            other => Err(serde::de::Error::custom(format!(
+                "unsupported process termination reason: {other}"
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
