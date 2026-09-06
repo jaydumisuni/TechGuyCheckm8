@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use tg_apple_observe::{LockedDeviceIdentity, ObservationSource, ObservedAppleDevice};
 use tg_contracts::DeviceMode;
-use tg_gaster_provider::{verify_pwnd_reconnect, GasterAction, GasterPwnPlan, GasterRunReceipt};
+use tg_gaster_provider::{
+    required_permissions, verify_pwnd_reconnect, GasterAction, GasterPwnPlan, GasterRunReceipt,
+};
 use tg_process::TerminationReason;
 use uuid::Uuid;
 
@@ -33,6 +35,17 @@ fn reconnected() -> ObservedAppleDevice {
     }
 }
 
+fn required_proofs() -> BTreeSet<String> {
+    BTreeSet::from([
+        "executable_hash_verified".to_owned(),
+        "starting_dfu_identity_locked".to_owned(),
+        "gaster_pwn_process_verified".to_owned(),
+        "gaster_reset_process_verified".to_owned(),
+        "host_pwnd_reconnect_verified".to_owned(),
+        "same_device_identity".to_owned(),
+    ])
+}
+
 fn plan(session_id: Uuid) -> GasterPwnPlan {
     GasterPwnPlan {
         session_id,
@@ -40,8 +53,8 @@ fn plan(session_id: Uuid) -> GasterPwnPlan {
         normalized_cpid: "8015".to_owned(),
         executable_sha256: "a".repeat(64),
         actions: vec![GasterAction::Pwn, GasterAction::Reset],
-        requested_permissions: BTreeSet::new(),
-        required_proofs: BTreeSet::new(),
+        requested_permissions: required_permissions(),
+        required_proofs: required_proofs(),
     }
 }
 
@@ -101,4 +114,24 @@ fn inconsistent_capture_receipt_cannot_prove_pwnd_reconnect() {
         .blockers
         .iter()
         .any(|blocker| blocker.contains("receipt integrity")));
+}
+
+#[test]
+fn forged_gaster_plan_cannot_prove_pwnd_reconnect() {
+    let session_id = Uuid::new_v4();
+    let mut forged_plan = plan(session_id);
+    forged_plan.normalized_cpid = "DEAD".to_owned();
+    forged_plan.actions.clear();
+    forged_plan.requested_permissions.clear();
+    forged_plan.required_proofs.clear();
+    let pwn = receipt(session_id, GasterAction::Pwn);
+    let reset = receipt(session_id, GasterAction::Reset);
+
+    let proof = verify_pwnd_reconnect(&forged_plan, &locked(), &pwn, &reset, &reconnected());
+
+    assert!(!proof.verified);
+    assert!(proof
+        .blockers
+        .iter()
+        .any(|blocker| blocker.contains("plan integrity")));
 }
