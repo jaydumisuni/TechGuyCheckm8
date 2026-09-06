@@ -277,6 +277,9 @@ pub fn verify_pwnd_reconnect(
     observed: &ObservedAppleDevice,
 ) -> GasterFinalProof {
     let mut blockers = Vec::new();
+    if !gaster_plan_integrity_verified(plan, locked_identity) {
+        blockers.push("Gaster plan integrity is not verified".to_owned());
+    }
     if pwn_receipt.session_id != plan.session_id
         || reset_receipt.session_id != plan.session_id
         || pwn_receipt.engine_id != plan.engine_id
@@ -323,6 +326,35 @@ pub fn verify_pwnd_reconnect(
         observed_mode: observed.mode.clone(),
         blockers,
     }
+}
+
+fn gaster_plan_integrity_verified(
+    plan: &GasterPwnPlan,
+    locked_identity: &LockedDeviceIdentity,
+) -> bool {
+    if plan.engine_id.trim().is_empty()
+        || normalize_cpid(&plan.normalized_cpid).ok().as_deref()
+            != Some(plan.normalized_cpid.as_str())
+        || normalize_cpid(&locked_identity.cpid).ok().as_deref()
+            != Some(plan.normalized_cpid.as_str())
+        || validate_sha256(&plan.executable_sha256).is_err()
+        || plan.actions != vec![GasterAction::Pwn, GasterAction::Reset]
+        || plan.requested_permissions != required_permissions()
+    {
+        return false;
+    }
+
+    let mandatory = [
+        "executable_hash_verified",
+        "starting_dfu_identity_locked",
+        "gaster_pwn_process_verified",
+        "gaster_reset_process_verified",
+        "host_pwnd_reconnect_verified",
+        "same_device_identity",
+    ];
+    mandatory
+        .iter()
+        .all(|proof| plan.required_proofs.contains(*proof))
 }
 
 fn receipt_integrity_verified(receipt: &GasterRunReceipt) -> bool {
