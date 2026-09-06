@@ -398,6 +398,9 @@ pub fn finalize_pwn_proof(
     if !pwn_plan_integrity_verified(plan, locked_identity) {
         failures.push("usbliter8 plan integrity is not verified".to_owned());
     }
+    if !board_evidence_integrity_verified(board) {
+        failures.push("usbliter8 board evidence integrity is not verified".to_owned());
+    }
     if plan.expected_cpid != locked_identity.cpid {
         failures.push("plan CPID no longer matches the locked device".to_owned());
     }
@@ -485,6 +488,22 @@ fn pwn_plan_integrity_verified(plan: &PwnDfuPlan, locked_identity: &LockedDevice
             NodeStage::ReconnectDeviceToHost,
             NodeStage::VerifyHostPwndDfu,
         ]
+}
+
+fn board_evidence_integrity_verified(board: &BoardRunEvidence) -> bool {
+    let expected_self_verified = board.success_marker
+        && !board.failure_marker
+        && !board.rediscovery_failed
+        && board.unsupported_cpid.is_none()
+        && board.initial_cpid.is_some()
+        && board.post_exploit_cpid.is_some()
+        && !board.initially_pwned
+        && board.post_exploit_pwnd_observed;
+
+    validate_sha256(&board.log_sha256).is_ok()
+        && board.log_bytes > 0
+        && board.log_bytes <= MAX_BOARD_LOG_BYTES
+        && board.self_verified_pwnd == expected_self_verified
 }
 
 fn validate_supported_cpid(cpid: &str) -> Result<(), Usbliter8Error> {
