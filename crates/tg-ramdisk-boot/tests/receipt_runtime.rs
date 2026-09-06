@@ -179,7 +179,11 @@ fn installation(fixture: &Fixture) -> BootInstallation {
 #[cfg(unix)]
 fn policy(fixture: &Fixture, timeout: Duration, capture_limit: usize) -> ProcessPolicy {
     ProcessPolicy::new(
-        vec![fixture.irecovery.parent().expect("bin parent").to_path_buf()],
+        vec![fixture
+            .irecovery
+            .parent()
+            .expect("bin parent")
+            .to_path_buf()],
         fixture.root.clone(),
         timeout,
         Duration::from_millis(2),
