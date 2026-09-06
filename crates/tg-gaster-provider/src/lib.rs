@@ -297,6 +297,12 @@ pub fn verify_pwnd_reconnect(
         if receipt.executable_sha256 != plan.executable_sha256 {
             blockers.push("Gaster executable hash changed between plan and execution".to_owned());
         }
+        if !receipt_integrity_verified(receipt) {
+            blockers.push(format!(
+                "{:?} receipt integrity is not verified",
+                receipt.action
+            ));
+        }
     }
     let reconnect = match_reconnect(
         locked_identity,
@@ -317,6 +323,20 @@ pub fn verify_pwnd_reconnect(
         observed_mode: observed.mode.clone(),
         blockers,
     }
+}
+
+fn receipt_integrity_verified(receipt: &GasterRunReceipt) -> bool {
+    receipt.termination == TerminationReason::Exited
+        && receipt.status_code == Some(0)
+        && receipt.process_success
+        && receipt.cleanup_verified
+        && receipt.timeout_millis > 0
+        && receipt.max_stdout_bytes > 0
+        && receipt.max_stderr_bytes > 0
+        && receipt.stdout_truncated == (receipt.stdout_bytes > receipt.max_stdout_bytes)
+        && receipt.stderr_truncated == (receipt.stderr_bytes > receipt.max_stderr_bytes)
+        && validate_sha256(&receipt.stdout_sha256).is_ok()
+        && validate_sha256(&receipt.stderr_sha256).is_ok()
 }
 
 fn receipt(
