@@ -279,6 +279,9 @@ pub fn build_purple_boot_plan(
     if request.pwn_proof.host_mode != DeviceMode::PwnedDfu
         || request.pwn_proof.host_pwn_provider.as_deref() != Some("usbliter8")
         || !request.pwn_proof.failures.is_empty()
+        || request.pwn_proof.node_id.trim().is_empty()
+        || validate_sha256(&request.pwn_proof.firmware_sha256).is_err()
+        || validate_sha256(&request.pwn_proof.board_log_sha256).is_err()
     {
         return Err(PurpleBootError::InconsistentPwnProof);
     }
@@ -372,6 +375,9 @@ pub fn finalize_purple_boot(
 ) -> PurpleBootFinalProof {
     let mut failures = Vec::new();
 
+    if !purple_plan_integrity_verified(plan, locked_identity) {
+        failures.push("Purple plan integrity is not verified".to_owned());
+    }
     if evidence.session_id != plan.session_id {
         failures.push("Purple evidence belongs to another session".to_owned());
     }
@@ -453,6 +459,104 @@ pub fn finalize_purple_boot(
         environment_backup_sha256: plan.environment_backup_sha256.clone(),
         failures,
     }
+}
+
+fn purple_plan_integrity_verified(
+    plan: &PurpleBootPlan,
+    locked_identity: &LockedDeviceIdentity,
+) -> bool {
+    if plan.route_id.trim().is_empty()
+        || plan.product_type.trim().is_empty()
+        || plan.board_config.trim().is_empty()
+        || plan.pwn_provider != "usbliter8"
+        || plan.granted_permissions != required_permissions()
+        || !plan.cleanup_required
+        || validate_sha256(&plan.environment_backup_sha256).is_err()
+        || normalize_cpid(&plan.cpid).ok().as_deref() != Some(plan.cpid.as_str())
+        || !matches!(plan.cpid.as_str(), "8006" | "8020" | "8030")
+        || locked_identity.cpid != plan.cpid
+        || locked_identity.product_type.as_deref() != Some(plan.product_type.as_str())
+        || locked_identity.board_config.as_deref() != Some(plan.board_config.as_str())
+    {
+        return false;
+    }
+
+    let mandatory_proofs = [
+        "pwned_dfu_same_device",
+        "boot_environment_backup_verified",
+        "raw_ibss_hash_verified",
+        "custom_boot_acknowledged",
+        "recovery_same_device",
+        "diag_image_hash_verified",
+        "fixed_boot_commands_acknowledged",
+        "purple_mode_same_device",
+        "post_service_environment_rollback_required",
+    ];
+    if mandatory_proofs
+        .iter()
+        .any(|proof| !plan.required_proofs.contains(*proof))
+    {
+        return false;
+    }
+
+    let expected_kinds = BTreeSet::from([BootArtifactKind::RawIbss, BootArtifactKind::DiagImg4]);
+    let observed_kinds = plan
+        .artifacts
+        .iter()
+        .map(|artifact| artifact.kind.clone())
+        .collect::<BTreeSet<_>>();
+    if plan.artifacts.len() != expected_kinds.len()
+        || observed_kinds != expected_kinds
+        || plan
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.size_bytes == 0 || validate_sha256(&artifact.sha256).is_err())
+    {
+        return false;
+    }
+
+    let prefix = [
+        PurpleBootStep::VerifyPwnedDfu,
+        PurpleBootStep::VerifyEnvironmentBackup,
+        PurpleBootStep::VerifyRawIbss,
+        PurpleBootStep::SendRawIbss,
+        PurpleBootStep::SendCustomBoot,
+    ];
+    if plan.steps.len() < prefix.len() || plan.steps[..prefix.len()] != prefix {
+        return false;
+    }
+
+    let mut cursor = prefix.len();
+    if let Some(PurpleBootStep::HoldPowerButton { seconds }) = plan.steps.get(cursor) {
+        if *seconds == 0 {
+            return false;
+        }
+        cursor += 1;
+    }
+    if plan.steps.get(cursor) != Some(&PurpleBootStep::WaitForRecovery) {
+        return false;
+    }
+    cursor += 1;
+    if plan.steps.get(cursor) != Some(&PurpleBootStep::VerifyRecoveryIdentity) {
+        return false;
+    }
+    cursor += 1;
+    match plan.steps.get(cursor) {
+        Some(PurpleBootStep::WaitForRecoverySettle { milliseconds }) if *milliseconds > 0 => {}
+        _ => return false,
+    }
+    cursor += 1;
+
+    let tail = [
+        PurpleBootStep::VerifyDiagImage,
+        PurpleBootStep::SendDiagImage,
+        PurpleBootStep::SetUsbSerialBootArgs,
+        PurpleBootStep::SaveEnvironment,
+        PurpleBootStep::Go,
+        PurpleBootStep::WaitForPurple,
+        PurpleBootStep::VerifyPurpleIdentity,
+    ];
+    plan.steps.get(cursor..) == Some(tail.as_slice())
 }
 
 fn validate_environment_backup(request: &PurpleBootRequest) -> Result<(), PurpleBootError> {

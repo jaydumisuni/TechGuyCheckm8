@@ -123,6 +123,20 @@ fn internally_inconsistent_pwn_proof_is_rejected() {
 }
 
 #[test]
+fn malformed_pwn_proof_evidence_is_rejected() {
+    let route = pinned_route();
+    let mut request = request(&route);
+    request.pwn_proof.node_id.clear();
+    request.pwn_proof.firmware_sha256 = "not-a-sha256".to_owned();
+    request.pwn_proof.board_log_sha256 = "also-not-a-sha256".to_owned();
+
+    assert_eq!(
+        build_purple_boot_plan(&route, &request),
+        Err(PurpleBootError::InconsistentPwnProof)
+    );
+}
+
+#[test]
 fn verified_purple_checkpoint_keeps_cleanup_obligation() {
     let route = pinned_route();
     let request = request(&route);

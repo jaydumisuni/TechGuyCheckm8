@@ -271,6 +271,9 @@ pub fn build_pwn_plan(
     if !missing.is_empty() {
         return Err(Usbliter8Error::MissingPermissions(missing));
     }
+    if request.granted_permissions != required {
+        return Err(Usbliter8Error::PermissionGrantMismatch);
+    }
 
     let firmware_sha256 = manifest
         .uf2_sha256
@@ -395,6 +398,12 @@ pub fn finalize_pwn_proof(
 ) -> PwnDfuFinalProof {
     let mut failures = Vec::new();
 
+    if !pwn_plan_integrity_verified(plan, locked_identity) {
+        failures.push("usbliter8 plan integrity is not verified".to_owned());
+    }
+    if !board_evidence_integrity_verified(board) {
+        failures.push("usbliter8 board evidence integrity is not verified".to_owned());
+    }
     if plan.expected_cpid != locked_identity.cpid {
         failures.push("plan CPID no longer matches the locked device".to_owned());
     }
@@ -441,6 +450,63 @@ pub fn finalize_pwn_proof(
         host_pwn_provider: host_observation.pwn_provider.clone(),
         failures,
     }
+}
+
+fn pwn_plan_integrity_verified(plan: &PwnDfuPlan, locked_identity: &LockedDeviceIdentity) -> bool {
+    if plan.node_id.trim().is_empty()
+        || plan.expected_cpid != locked_identity.cpid
+        || normalize_cpid(&plan.expected_cpid).ok().as_deref() != Some(plan.expected_cpid.as_str())
+        || !matches!(plan.expected_cpid.as_str(), "8006" | "8020" | "8030")
+        || validate_sha256(&plan.firmware_sha256).is_err()
+        || plan.granted_permissions != required_permissions()
+    {
+        return false;
+    }
+
+    let mandatory_proofs = [
+        "board_firmware_hash_verified",
+        "board_dfu_identity_verified",
+        "board_success_marker",
+        "board_self_verified_pwnd",
+        "host_pwnd_reconnect_verified",
+        "same_device_identity",
+    ];
+    if mandatory_proofs
+        .iter()
+        .any(|proof| !plan.required_proofs.contains(*proof))
+    {
+        return false;
+    }
+
+    plan.stages
+        == vec![
+            NodeStage::LockHostDfuIdentity,
+            NodeStage::VerifyBoardFirmware,
+            NodeStage::DisconnectDeviceFromHost,
+            NodeStage::ConnectDeviceToBoard,
+            NodeStage::WaitForBoardDfuIdentity,
+            NodeStage::ExecuteHardwarePwn,
+            NodeStage::VerifyBoardPwndState,
+            NodeStage::DisconnectDeviceFromBoard,
+            NodeStage::ReconnectDeviceToHost,
+            NodeStage::VerifyHostPwndDfu,
+        ]
+}
+
+fn board_evidence_integrity_verified(board: &BoardRunEvidence) -> bool {
+    let expected_self_verified = board.success_marker
+        && !board.failure_marker
+        && !board.rediscovery_failed
+        && board.unsupported_cpid.is_none()
+        && board.initial_cpid.is_some()
+        && board.post_exploit_cpid.is_some()
+        && !board.initially_pwned
+        && board.post_exploit_pwnd_observed;
+
+    validate_sha256(&board.log_sha256).is_ok()
+        && board.log_bytes > 0
+        && board.log_bytes <= MAX_BOARD_LOG_BYTES
+        && board.self_verified_pwnd == expected_self_verified
 }
 
 fn validate_supported_cpid(cpid: &str) -> Result<(), Usbliter8Error> {
@@ -559,6 +625,8 @@ pub enum Usbliter8Error {
     IncompletePhysicalHandoff,
     #[error("hardware-pwn stage is missing permissions: {0:?}")]
     MissingPermissions(Vec<Permission>),
+    #[error("hardware-pwn stage permissions must exactly match the fixed grant")]
+    PermissionGrantMismatch,
     #[error("board log exceeds the maximum size: {0} bytes")]
     BoardLogTooLarge(usize),
     #[error("board log is not valid UTF-8")]

@@ -6,13 +6,19 @@ on:
     paths:
       - ".github/workflows/apple-lab-contracts.yml"
       - "tools/apple-lab/**"
+      - "crates/tg-process/**"
+      - "crates/tg-gaster-provider/**"
       - "crates/tg-ramdisk-pack/**"
+      - "crates/tg-ramdisk-boot/**"
   push:
     branches: [build/reviewed-apple-tools-v1]
     paths:
       - ".github/workflows/apple-lab-contracts.yml"
       - "tools/apple-lab/**"
+      - "crates/tg-process/**"
+      - "crates/tg-gaster-provider/**"
       - "crates/tg-ramdisk-pack/**"
+      - "crates/tg-ramdisk-boot/**"
 
 permissions:
   contents: read
@@ -38,6 +44,9 @@ jobs:
 
       - name: Run lab contract tests
         run: python -m unittest discover -s tools/apple-lab/tests -v
+
+      - name: Run bounded Apple runtime contract tests
+        run: cargo test -p tg-process -p tg-gaster-provider -p tg-ramdisk-boot
 
       - name: Verify patch against pinned SSHRD
         run: |

@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tg_apple_observe::{match_reconnect, LockedDeviceIdentity, ObservedAppleDevice};
 use tg_contracts::{DeviceMode, Maturity, Permission};
-use tg_process::{run_supervised, ProcessPolicy, ProcessSpec, SupervisedOutcome};
+use tg_process::{
+    run_supervised, ProcessPolicy, ProcessSpec, SupervisedOutcome, TerminationReason,
+};
 use uuid::Uuid;
 
 pub const GASTER_PROVIDER_VERSION: &str = "tgcheckm8.gaster-provider.v1";
@@ -88,6 +90,8 @@ pub struct GasterRunReceipt {
     pub engine_id: String,
     pub action: GasterAction,
     pub executable_sha256: String,
+    #[serde(with = "termination_reason_serde")]
+    pub termination: TerminationReason,
     pub status_code: Option<i32>,
     pub process_success: bool,
     pub cleanup_verified: bool,
@@ -98,6 +102,9 @@ pub struct GasterRunReceipt {
     pub stdout_truncated: bool,
     pub stderr_truncated: bool,
     pub elapsed_millis: u128,
+    pub timeout_millis: u128,
+    pub max_stdout_bytes: usize,
+    pub max_stderr_bytes: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -254,7 +261,12 @@ pub fn execute_action(
             working_directory: request.working_directory.clone(),
         },
     )?;
-    Ok(receipt(request.plan, request.action.clone(), outcome))
+    Ok(receipt(
+        policy,
+        request.plan,
+        request.action.clone(),
+        outcome,
+    ))
 }
 
 pub fn verify_pwnd_reconnect(
@@ -265,6 +277,9 @@ pub fn verify_pwnd_reconnect(
     observed: &ObservedAppleDevice,
 ) -> GasterFinalProof {
     let mut blockers = Vec::new();
+    if !gaster_plan_integrity_verified(plan, locked_identity) {
+        blockers.push("Gaster plan integrity is not verified".to_owned());
+    }
     if pwn_receipt.session_id != plan.session_id
         || reset_receipt.session_id != plan.session_id
         || pwn_receipt.engine_id != plan.engine_id
@@ -284,6 +299,12 @@ pub fn verify_pwnd_reconnect(
         }
         if receipt.executable_sha256 != plan.executable_sha256 {
             blockers.push("Gaster executable hash changed between plan and execution".to_owned());
+        }
+        if !receipt_integrity_verified(receipt) {
+            blockers.push(format!(
+                "{:?} receipt integrity is not verified",
+                receipt.action
+            ));
         }
     }
     let reconnect = match_reconnect(
@@ -307,7 +328,51 @@ pub fn verify_pwnd_reconnect(
     }
 }
 
+fn gaster_plan_integrity_verified(
+    plan: &GasterPwnPlan,
+    locked_identity: &LockedDeviceIdentity,
+) -> bool {
+    if plan.engine_id.trim().is_empty()
+        || normalize_cpid(&plan.normalized_cpid).ok().as_deref()
+            != Some(plan.normalized_cpid.as_str())
+        || normalize_cpid(&locked_identity.cpid).ok().as_deref()
+            != Some(plan.normalized_cpid.as_str())
+        || validate_sha256(&plan.executable_sha256).is_err()
+        || plan.actions != vec![GasterAction::Pwn, GasterAction::Reset]
+        || plan.requested_permissions != required_permissions()
+    {
+        return false;
+    }
+
+    let mandatory = [
+        "executable_hash_verified",
+        "starting_dfu_identity_locked",
+        "gaster_pwn_process_verified",
+        "gaster_reset_process_verified",
+        "host_pwnd_reconnect_verified",
+        "same_device_identity",
+    ];
+    mandatory
+        .iter()
+        .all(|proof| plan.required_proofs.contains(*proof))
+}
+
+fn receipt_integrity_verified(receipt: &GasterRunReceipt) -> bool {
+    receipt.termination == TerminationReason::Exited
+        && receipt.status_code == Some(0)
+        && receipt.process_success
+        && receipt.cleanup_verified
+        && receipt.timeout_millis > 0
+        && receipt.max_stdout_bytes > 0
+        && receipt.max_stderr_bytes > 0
+        && receipt.stdout_truncated == (receipt.stdout_bytes > receipt.max_stdout_bytes)
+        && receipt.stderr_truncated == (receipt.stderr_bytes > receipt.max_stderr_bytes)
+        && validate_sha256(&receipt.stdout_sha256).is_ok()
+        && validate_sha256(&receipt.stderr_sha256).is_ok()
+}
+
 fn receipt(
+    policy: &ProcessPolicy,
     plan: &GasterPwnPlan,
     action: GasterAction,
     outcome: SupervisedOutcome,
@@ -317,6 +382,7 @@ fn receipt(
         engine_id: plan.engine_id.clone(),
         action,
         executable_sha256: plan.executable_sha256.clone(),
+        termination: outcome.termination,
         status_code: outcome.status_code,
         process_success: outcome.success,
         cleanup_verified: outcome.cleanup.verified(),
@@ -327,6 +393,9 @@ fn receipt(
         stdout_truncated: outcome.stdout.truncated,
         stderr_truncated: outcome.stderr.truncated,
         elapsed_millis: outcome.elapsed_millis,
+        timeout_millis: policy.timeout.as_millis(),
+        max_stdout_bytes: policy.max_stdout_bytes,
+        max_stderr_bytes: policy.max_stderr_bytes,
     }
 }
 
@@ -376,6 +445,36 @@ fn to_hex(bytes: &[u8]) -> String {
         output.push(HEX[(byte & 0x0f) as usize] as char);
     }
     output
+}
+
+mod termination_reason_serde {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use tg_process::TerminationReason;
+
+    pub fn serialize<S>(value: &TerminationReason, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let value = match value {
+            TerminationReason::Exited => "exited",
+            TerminationReason::TimeoutKilled => "timeout_killed",
+        };
+        serializer.serialize_str(value)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<TerminationReason, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "exited" => Ok(TerminationReason::Exited),
+            "timeout_killed" => Ok(TerminationReason::TimeoutKilled),
+            other => Err(serde::de::Error::custom(format!(
+                "unsupported process termination reason: {other}"
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

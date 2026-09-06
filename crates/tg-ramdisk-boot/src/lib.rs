@@ -14,7 +14,9 @@ use sha2::{Digest, Sha256};
 use tg_apple_observe::LockedDeviceIdentity;
 use tg_contracts::{DeviceMode, Maturity, Permission};
 use tg_gaster_provider::GasterFinalProof;
-use tg_process::{run_supervised, ProcessPolicy, ProcessSpec, SupervisedOutcome};
+use tg_process::{
+    run_supervised, ProcessPolicy, ProcessSpec, SupervisedOutcome, TerminationReason,
+};
 use tg_ramdisk_pack::{
     validate_pack, AssetRole, BootCheckpoint, BootStep, FixedRecoveryCommand, RamdiskProviderPack,
 };
@@ -67,6 +69,8 @@ pub struct BootProcessReceipt {
     pub executable_sha256: String,
     pub asset_role: Option<AssetRole>,
     pub asset_sha256: Option<String>,
+    #[serde(with = "termination_reason_serde")]
+    pub termination: TerminationReason,
     pub status_code: Option<i32>,
     pub process_success: bool,
     pub cleanup_verified: bool,
@@ -74,7 +78,12 @@ pub struct BootProcessReceipt {
     pub stderr_sha256: String,
     pub stdout_bytes: usize,
     pub stderr_bytes: usize,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
     pub elapsed_millis: u128,
+    pub timeout_millis: u128,
+    pub max_stdout_bytes: usize,
+    pub max_stderr_bytes: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -358,6 +367,7 @@ pub fn execute_current_process_step(
         },
     )?;
     let receipt = process_receipt(
+        process_policy,
         runtime.next_step,
         instruction,
         executable_hash,
@@ -371,6 +381,7 @@ pub fn execute_current_process_step(
             "iRecovery step {} failed or did not clean up",
             runtime.next_step
         ));
+        runtime.process_receipts.push(receipt.clone());
         return Err(RamdiskBootError::ProcessStepFailed {
             step_index: receipt.step_index,
             status_code: receipt.status_code,
@@ -464,6 +475,10 @@ pub fn finalize_runtime(
     {
         blockers.push("one or more iRecovery process receipts are unverified".to_owned());
     }
+    if !process_receipt_sequence_verified(runtime, pack) {
+        blockers
+            .push("iRecovery process receipt sequence does not exactly match boot plan".to_owned());
+    }
 
     RamdiskBootFinalProof {
         session_id: runtime.session_id,
@@ -474,6 +489,61 @@ pub fn finalize_runtime(
         final_checkpoint,
         blockers,
     }
+}
+
+fn process_receipt_sequence_verified(
+    runtime: &RamdiskBootRuntime,
+    pack: &RamdiskProviderPack,
+) -> bool {
+    let expected = pack
+        .boot_steps
+        .iter()
+        .enumerate()
+        .filter(|(_, step)| matches!(step, BootStep::SendAsset(_) | BootStep::RecoveryCommand(_)))
+        .collect::<Vec<_>>();
+    if runtime.process_receipts.len() != expected.len() {
+        return false;
+    }
+
+    runtime
+        .process_receipts
+        .iter()
+        .zip(expected)
+        .all(|(receipt, (step_index, step))| {
+            if receipt.step_index != step_index
+                || receipt.executable_sha256 != runtime.irecovery_sha256
+                || receipt.termination != TerminationReason::Exited
+                || receipt.status_code != Some(0)
+                || !receipt.process_success
+                || !receipt.cleanup_verified
+                || receipt.timeout_millis == 0
+                || receipt.max_stdout_bytes == 0
+                || receipt.max_stderr_bytes == 0
+                || receipt.stdout_truncated != (receipt.stdout_bytes > receipt.max_stdout_bytes)
+                || receipt.stderr_truncated != (receipt.stderr_bytes > receipt.max_stderr_bytes)
+                || validate_sha256(&receipt.stdout_sha256).is_err()
+                || validate_sha256(&receipt.stderr_sha256).is_err()
+            {
+                return false;
+            }
+
+            match step {
+                BootStep::SendAsset(role) => {
+                    let Some(asset) = pack.assets.get(role) else {
+                        return false;
+                    };
+                    receipt.instruction == format!("send_asset:{role:?}")
+                        && receipt.asset_role.as_ref() == Some(role)
+                        && receipt.asset_sha256.as_deref() == Some(asset.sha256.as_str())
+                }
+                BootStep::RecoveryCommand(command) => {
+                    receipt.instruction == format!("recovery_command:{command:?}")
+                        && receipt.asset_role.is_none()
+                        && receipt.asset_sha256.is_none()
+                }
+                _ => false,
+            }
+        })
 }
 
 fn ensure_runtime_scope(
@@ -553,6 +623,7 @@ fn canonical_directory(path: &Path) -> Result<PathBuf, RamdiskBootError> {
 }
 
 fn process_receipt(
+    policy: &ProcessPolicy,
     step_index: usize,
     instruction: String,
     executable_sha256: String,
@@ -566,6 +637,7 @@ fn process_receipt(
         executable_sha256,
         asset_role,
         asset_sha256,
+        termination: outcome.termination,
         status_code: outcome.status_code,
         process_success: outcome.success,
         cleanup_verified: outcome.cleanup.verified(),
@@ -573,7 +645,12 @@ fn process_receipt(
         stderr_sha256: to_hex(&Sha256::digest(&outcome.stderr.bytes)),
         stdout_bytes: outcome.stdout.total_bytes,
         stderr_bytes: outcome.stderr.total_bytes,
+        stdout_truncated: outcome.stdout.truncated,
+        stderr_truncated: outcome.stderr.truncated,
         elapsed_millis: outcome.elapsed_millis,
+        timeout_millis: policy.timeout.as_millis(),
+        max_stdout_bytes: policy.max_stdout_bytes,
+        max_stderr_bytes: policy.max_stderr_bytes,
     }
 }
 
@@ -619,6 +696,36 @@ fn to_hex(bytes: &[u8]) -> String {
         output.push(HEX[(byte & 0x0f) as usize] as char);
     }
     output
+}
+
+mod termination_reason_serde {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use tg_process::TerminationReason;
+
+    pub fn serialize<S>(value: &TerminationReason, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let value = match value {
+            TerminationReason::Exited => "exited",
+            TerminationReason::TimeoutKilled => "timeout_killed",
+        };
+        serializer.serialize_str(value)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<TerminationReason, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "exited" => Ok(TerminationReason::Exited),
+            "timeout_killed" => Ok(TerminationReason::TimeoutKilled),
+            other => Err(serde::de::Error::custom(format!(
+                "unsupported process termination reason: {other}"
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -682,8 +789,8 @@ pub enum RamdiskBootError {
     #[error("expected directory: {0}")]
     ExpectedDirectory(PathBuf),
     #[error(
-    "iRecovery process step {step_index} failed: status={status_code:?}, cleanup={cleanup_verified}"
-)]
+        "iRecovery process step {step_index} failed: status={status_code:?}, cleanup={cleanup_verified}"
+    )]
     ProcessStepFailed {
         step_index: usize,
         status_code: Option<i32>,
