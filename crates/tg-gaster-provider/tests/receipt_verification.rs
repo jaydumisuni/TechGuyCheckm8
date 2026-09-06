@@ -2,9 +2,7 @@ use std::collections::BTreeSet;
 
 use tg_apple_observe::{LockedDeviceIdentity, ObservationSource, ObservedAppleDevice};
 use tg_contracts::DeviceMode;
-use tg_gaster_provider::{
-    verify_pwnd_reconnect, GasterAction, GasterPwnPlan, GasterRunReceipt,
-};
+use tg_gaster_provider::{verify_pwnd_reconnect, GasterAction, GasterPwnPlan, GasterRunReceipt};
 use tg_process::TerminationReason;
 use uuid::Uuid;
 
