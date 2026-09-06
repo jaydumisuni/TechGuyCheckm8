@@ -475,6 +475,9 @@ pub fn finalize_runtime(
     {
         blockers.push("one or more iRecovery process receipts are unverified".to_owned());
     }
+    if !process_receipt_sequence_verified(runtime, pack) {
+        blockers.push("iRecovery process receipt sequence does not exactly match boot plan".to_owned());
+    }
 
     RamdiskBootFinalProof {
         session_id: runtime.session_id,
@@ -485,6 +488,61 @@ pub fn finalize_runtime(
         final_checkpoint,
         blockers,
     }
+}
+
+fn process_receipt_sequence_verified(
+    runtime: &RamdiskBootRuntime,
+    pack: &RamdiskProviderPack,
+) -> bool {
+    let expected = pack
+        .boot_steps
+        .iter()
+        .enumerate()
+        .filter(|(_, step)| matches!(step, BootStep::SendAsset(_) | BootStep::RecoveryCommand(_)))
+        .collect::<Vec<_>>();
+    if runtime.process_receipts.len() != expected.len() {
+        return false;
+    }
+
+    runtime
+        .process_receipts
+        .iter()
+        .zip(expected)
+        .all(|(receipt, (step_index, step))| {
+            if receipt.step_index != step_index
+                || receipt.executable_sha256 != runtime.irecovery_sha256
+                || receipt.termination != TerminationReason::Exited
+                || receipt.status_code != Some(0)
+                || !receipt.process_success
+                || !receipt.cleanup_verified
+                || receipt.timeout_millis == 0
+                || receipt.max_stdout_bytes == 0
+                || receipt.max_stderr_bytes == 0
+                || receipt.stdout_truncated != (receipt.stdout_bytes > receipt.max_stdout_bytes)
+                || receipt.stderr_truncated != (receipt.stderr_bytes > receipt.max_stderr_bytes)
+                || validate_sha256(&receipt.stdout_sha256).is_err()
+                || validate_sha256(&receipt.stderr_sha256).is_err()
+            {
+                return false;
+            }
+
+            match step {
+                BootStep::SendAsset(role) => {
+                    let Some(asset) = pack.assets.get(role) else {
+                        return false;
+                    };
+                    receipt.instruction == format!("send_asset:{role:?}")
+                        && receipt.asset_role.as_ref() == Some(role)
+                        && receipt.asset_sha256.as_deref() == Some(asset.sha256.as_str())
+                }
+                BootStep::RecoveryCommand(command) => {
+                    receipt.instruction == format!("recovery_command:{command:?}")
+                        && receipt.asset_role.is_none()
+                        && receipt.asset_sha256.is_none()
+                }
+                _ => false,
+            }
+        })
 }
 
 fn ensure_runtime_scope(
